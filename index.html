@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>たすくえあ Tasquare · 找正方形</title>
+<meta name="description" content="Tasquare（たすくえあ）：黑格拼成互不共边的实心正方形区，圈内数字＝邻接黑区格数之和。每一局都由穷举裁判证明解唯一、由零猜测铅笔证明推得完。">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="bar">
+  <h1>たすくえあ <small>Tasquare</small></h1>
+  <p class="tag">黑格只能是正方形区，区与区不许共边；圈里的数字是邻接黑区的格数之和。</p>
+  <nav id="tiers" class="tiers" aria-label="档位"></nav>
+</header>
+
+<main>
+  <section id="play" class="play">
+    <div id="board" class="board" role="grid" aria-label="盘面"></div>
+    <aside class="side" aria-label="这局的状态与操作">
+      <p id="seedline" class="seed"></p>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+      <div class="controls">
+        <button type="button" id="next">换一局</button>
+        <button type="button" id="hint">提示一步</button>
+        <button type="button" id="check">检查</button>
+        <button type="button" id="reset" class="ghost">清空我的涂黑</button>
+      </div>
+      <p id="hintline" class="hint"></p>
+      <p id="result" class="result"></p>
+      <ul id="violations" class="violations"></ul>
+      <p id="cert" class="cert"></p>
+      <p class="howto">左键在"未知 → 黑 → 白"之间循环；右键直接涂黑或擦掉；方向键走格，回车落子。中途离开没关系，每一格都即时存在本地，回来接着下。</p>
+    </aside>
+  </section>
+
+  <section id="reject" class="reject" hidden>
+    <h2>这一局号没能出货</h2>
+    <p>出题器只交"裁判证明唯一 ∧ 铅笔零猜测推得完"的盘。两张条件缺一条就整张丢弃重铺，
+      所以下面这一局在这台机器上根本没有画出来 —— 我们不发没证完的盘，也不把没证完的盘写成"难题"。</p>
+    <p id="reject-detail" class="seed"></p>
+    <p><button type="button" id="reject-next">换一局</button></p>
+  </section>
+
+  <section class="rules">
+    <h2>规则（六条，一条一个编号）</h2>
+    <ol id="clauses" class="clauses"></ol>
+    <details>
+      <summary>规则出处 · 逐字引文</summary>
+      <pre id="quote" class="quote"></pre>
+      <p id="source" class="source"></p>
+    </details>
+    <p id="knobs" class="knobs"></p>
+  </section>
+</main>
+
+<footer class="foot">
+  <p>引擎：<code>js/engine/</code> 五份（规则模型 / 穷举裁判 / 零猜测铅笔 / 出题器 / 随机流），
+    页面不做任何判定。门禁：<code>npm test</code> 四道闸（rule-test · counter-test · pencil-test · balance），
+    档位表里每个数字都是量出来的。</p>
+</footer>
+
+<script type="module" src="js/ui/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,181 @@
+// 页面装配 · 只画不判 —— 判定全部来自 js/ui/game.js 背后的引擎
+//
+// 纪律：本文件里不许出现"合法/唯一解/推得完"这类结论的**实现**，只许出现引擎答复的**转述**；
+// 也不许在这里写死档位或规则文案：档名/尺寸/线索区间/步数区间从 TIERS 现读，
+// 条款句子读 CLAUSE_TEXT，提示的"为什么"读 pencil.js 的 CLAUSES，出处引文读 SOURCE_QUOTE。
+
+import { BLK, MARK_TEXT, UNK, WHT, cellsOf, makeGame, tierList } from './game.js';
+import { CLAUSE_TEXT, DEFAULTS, SOURCE_QUOTE, SOURCE_URL } from '../engine/rules.js';
+
+const $ = (id) => document.getElementById(id);
+const tiers = tierList();
+const store = typeof localStorage !== 'undefined' ? localStorage : null;
+
+let game = null;
+
+/** 局号是递增整数，**不许**由日期派生（那等于每天换一批盘，"换一局"就对不上任何公式）。 */
+function parseHash(h) {
+  const m = /^#?([0-9a-z._-]+)\/(\d+)$/i.exec(String(h || '').replace(/^#/, ''));
+  if (!m) return null;
+  return tiers.some((t) => t.key === m[1]) ? { tierKey: m[1], round: Number(m[2]) } : null;
+}
+
+function load(tierKey, round) {
+  game = makeGame(tierKey, round, store);
+  history.replaceState(null, '', `#${game.tierKey}/${game.round}`);   // 不触发 hashchange：换局只有一次 produce
+  render();
+}
+
+/** 页面上的静态文字全部来自引擎常量。 */
+function renderStatic() {
+  $('clauses').innerHTML = Object.values(CLAUSE_TEXT).map((s) => `<li>${s}</li>`).join('');
+  $('quote').textContent = SOURCE_QUOTE.join('\n');
+  $('source').textContent = `规则出处：Cross+A 英文索引 Tasukuea 条目（${SOURCE_URL}，检索日期 2026-09-29），上栏为逐字引文。`;
+  $('knobs').textContent = '本仓口径（这三处源文本没定，换掉任何一处都是换游戏；量法见 tools/balance.mjs 的 G 节）：'
+    + Object.entries(DEFAULTS).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(' · ');
+  $('tiers').innerHTML = tiers.map((t) => (
+    `<button type="button" class="tier" data-key="${t.key}"><b>${t.label}</b>`
+    + `<span>${t.size} · 印刷线索 ${t.band[0]}–${t.band[1]} 条 · 铅笔 ${t.steps[0]}–${t.steps[1]} 步`
+    + `${t.target === 0 ? ' · 裁到不可约' : ` · 目标 ${t.target} 条`}</span></button>`
+  )).join('');
+  for (const b of $('tiers').querySelectorAll('.tier')) {
+    b.addEventListener('click', () => {
+      const cur = parseHash(location.hash) || { tierKey: game.tierKey, round: game.round };
+      load(b.dataset.key, cur.round);
+    });
+  }
+}
+
+function renderBoard() {
+  const board = $('board');
+  if (!game.ok) { board.innerHTML = ''; board.hidden = true; return; }
+  board.hidden = false;
+  const { face, marks } = game;
+  board.style.setProperty('--cols', String(face.w));
+  board.innerHTML = cellsOf(face).map((c) => {
+    const m = c.clue ? null : marks[c.i];
+    const cls = ['cell', c.clue ? 'clue' : 'free', c.clue ? '' : m === BLK ? 'blk' : m === WHT ? 'wht' : 'unk',
+      c.qmark ? 'q' : ''].filter(Boolean).join(' ');
+    const label = c.clue
+      ? `线索格 ${c.r + 1},${c.j + 1}：${c.label}`
+      : `格 ${c.r + 1},${c.j + 1}，当前${MARK_TEXT[m]}，回车换下一态`;
+    const attrs = c.clue ? ' aria-readonly="true"' : ' tabindex="0"';
+    return `<div class="${cls}" role="gridcell" data-i="${c.i}" data-r="${c.r}" data-j="${c.j}"`
+      + ` aria-label="${label}"${attrs}>${c.clue ? `<span>${c.label}</span>` : ''}</div>`;
+  }).join('');
+  for (const el of board.querySelectorAll('.free')) {
+    const i = Number(el.dataset.i);
+    el.addEventListener('click', () => { game.cycle(i); render(); });
+    // 右键只做两件事：黑 ↔ 未知（跳过"白"，注白交给左键的第二态）
+    el.addEventListener('contextmenu', (e) => { e.preventDefault(); game.mark(i, game.marks[i] === BLK ? UNK : BLK); render(); });
+  }
+}
+
+function renderStatus() {
+  const reject = $('reject'), play = $('play');
+  if (!game.ok) {
+    play.hidden = true; reject.hidden = false;
+    // 把上一局的读数擦干净：#status 是 aria-live，留着旧数字就等于同一张页面上同时说出
+    // "这一局没出货"和"自由格 32：黑 1"两种结论。
+    for (const id of ['seedline', 'status', 'result', 'cert', 'hintline']) $(id).textContent = '';
+    $('violations').innerHTML = '';
+    const rc = game.reject.receipt;
+    $('reject-detail').textContent = `fail=${game.reject.fail} · draws=${game.reject.draws}`
+      + (rc ? ` · 铺面 ${rc.layTried} 张 · 裁判调用 ${rc.shipRuns} 次` : '') + ` · seed=${game.seed}`;
+    return;
+  }
+  play.hidden = false; reject.hidden = true;
+  const { black, white, unknown, free } = game.counts();
+  const v = game.verdict();
+  $('seedline').textContent = `${game.tier.label} · 第 ${game.round} 局 · seed ${game.seed}`;
+  $('status').textContent = `自由格 ${free}：黑 ${black} · 白 ${white} · 未知 ${unknown}`;
+  $('violations').innerHTML = v.violations.map((x) => `<li><b>${x.text}</b><code>${x.msg}</code></li>`).join('');
+  const r = $('result');
+  r.className = `result${v.full ? (v.legal ? ' won' : ' bad') : ''}`;
+  r.textContent = v.full ? (v.legal ? '完成：这张涂黑过规则模型的全部条款' : `填满了，但有 ${v.violations.length} 处不合条款`) : '';
+  $('cert').textContent = v.legal ? (() => {
+    const c = game.certify();
+    return `出货凭证（浏览器现算，不是抄出题器的账）：count=${c.count} · 节点 ${c.nodes} · stopped=${c.stopped}`
+      + ` · 线索 ${c.clues} 条 · 铅笔 ${c.pencilSteps} 步推完（未知 ${c.pencilUnknown}）· 命中规则 ${c.rules} 条`
+      + ` · 与裁判交回的那张差 ${c.vsPlayer} 格`;
+  })() : '';
+}
+
+function render() {
+  // 整块 innerHTML 重建会把焦点丢回 body：不找回同一格，"方向键走格 + 回车落子"就只能用一步。
+  const focusI = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.i : null;
+  renderBoard();
+  renderStatus();
+  markActiveTier();
+  $('hintline').textContent = '';
+  if (focusI != null) {
+    const t = $('board').querySelector(`.cell[data-i="${focusI}"]`);
+    if (t) { t.tabIndex = 0; t.focus({ preventScroll: true }); }
+  }
+}
+
+/** 高亮当前档位：这是转述 game.tierKey，不是第二份状态（页面别处不许再存一个"当前档"）。 */
+function markActiveTier() {
+  if (!game) return;
+  for (const b of $('tiers').querySelectorAll('.tier')) b.classList.toggle('on', b.dataset.key === game.tierKey);
+}
+
+renderStatic();
+load((parseHash(location.hash) || { tierKey: tiers[0].key, round: 0 }).tierKey,
+  (parseHash(location.hash) || { tierKey: tiers[0].key, round: 0 }).round);
+
+$('next').addEventListener('click', () => load(game.tierKey, game.round + 1));
+// 拒盘那块面板必须自己也能走人：#play 在这条分支里是 hidden 的，#next 根本点不到，
+// 少这一行的话"这一局号没能出货"就是一张死路告示，而页面上唯一能换局的按钮藏在看不见的那块里。
+$('reject-next').addEventListener('click', () => load(game.tierKey, game.round + 1));
+$('reset').addEventListener('click', () => { game.clear(); render(); });
+$('check').addEventListener('click', renderStatus);
+$('hint').addEventListener('click', () => {
+  if (!game.ok) return;
+  const f = game.face, h = game.hint();
+  $('hintline').textContent = h
+    ? `提示：格 ${(h.i / f.w | 0) + 1},${(h.i % f.w) + 1} 应为${MARK_TEXT[h.v]} —— ${h.text}`
+    : '铅笔在纯题面上已经没有"只剩一个选项"的一步可下了。这一盘的答案仍被裁判证明唯一，但要往下走就得试。';
+});
+
+// 方向键走格子；Enter/Space 与点击走同一条 cycle
+$('board').addEventListener('keydown', (e) => {
+  const el = e.target.closest('.cell');
+  if (!el || !game.ok) return;
+  const r = Number(el.dataset.r), j = Number(el.dataset.j);
+  const d = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[e.key];
+  if (d) {
+    e.preventDefault();
+    const t = $('board').querySelector(`.cell[data-r="${r + d[0]}"][data-j="${j + d[1]}"]`);
+    if (t) { t.tabIndex = 0; t.focus(); }
+    return;
+  }
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); game.cycle(Number(el.dataset.i)); render(); }
+});
+
+// 换局号的来路有三种：按钮、地址栏手改、别的标签页 —— 后两种都靠 hashchange
+window.addEventListener('hashchange', () => {
+  const p = parseHash(location.hash);
+  if (!p) {
+    // 手改成一个不存在的档/局号（#nope/3、#easy-6x6/abc）：页面里没有这样一盘。
+    // 按原状重发一次 load()，让地址栏回到真的那一局，而不是挂着一条页面对不上的 URL。
+    load(game.tierKey, game.round);
+    return;
+  }
+  if (p.tierKey !== game.tierKey || p.round !== game.round) load(p.tierKey, p.round);
+});
+
+/** 浏览器闸的读数口：状态由引擎派生，闸拿它与 node 侧逐字节对账。 */
+window.tasquare = {
+  state: () => (game ? {
+    seed: game.seed, tier: game.tierKey, round: game.round, ok: game.ok,
+    face: game.ok ? game.faceText() : null,
+    counts: game.ok ? game.counts() : null,
+    verdict: game.ok ? game.verdict() : null,
+    hint: game.ok ? (game.hint() || null) : null,
+    reject: game.ok ? null : game.reject.fail,
+  } : null),
+  mark: (i, v) => { game.mark(i, v); render(); },
+  cycle: (i) => { game.cycle(i); render(); },
+  load,
+};

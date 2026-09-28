@@ -58,6 +58,35 @@ export const UNK = 0, BLK = 1, WHT = 2;
 export const DEFAULTS = Object.freeze({ readA: 'area', allowSingle: true, printZero: true });
 export const opts = (o) => ({ ...DEFAULTS, ...o });
 
+/** 规则唯一出处（页面直接读这两条常量，HTML 里不许再抄一份 —— 抄了就会漂） */
+export const SOURCE_URL = 'https://www.cross-plus-a.com/puzzles.htm';
+export const SOURCE_QUOTE = Object.freeze([
+  'Tasukuea ("Tasquare"; from Japanese, literally "find squares") is a type of logic puzzles.',
+  'It is played on a rectangular or square grid with numbers or question signs in some cells.',
+  'The goal is to blacken some cells of a grid according to the following rules:',
+  '- Cells with numbers or question signs can not be blacken.',
+  '- Black cells form square areas, that must not be orthogonally adjacent.',
+  '- A number in a circle indicates the total number of black cells in areas orthogonally',
+  '  neighbouring the numbered cell.',
+  '- A cell with a question sign must have at least one adjacent black cell.',
+  '- All the white cells must be connected horizontally or vertically.',
+]);
+
+/**
+ * 条款表：`verify()` 的违反码与页面的"规则"面板共用这一份文字。
+ * 一个 code 一条，R1..R6 加 B 开关的变体 R2b —— 键集必须与 verify() 能吐出的 code 一致，
+ * 这条由 rule-test 守着（新增 code 却没在这里配文字 ⇒ 页面上会出现没人见过的代号）。
+ */
+export const CLAUSE_TEXT = Object.freeze({
+  R1: '[R1] 数字与问号的格子都不能涂黑',
+  R2: '[R2] 黑格必须组成实心、正放的正方形区（外接框必须是 k×k 且填满）',
+  R2b: '[R2b] 1×1 的黑格在这个口径下不算方形区（只有 allowSingle=false 时才存在这条）',
+  R3: '[R3] 黑区之间不得正交共边',
+  R4: '[R4] 圈内数字＝正交邻接的黑区格数之和（印 0 是合法读数）',
+  R5: '[R5] 问号格必须至少邻一个黑格',
+  R6: '[R6] 白格必须整体正交连通（一个黑格都不许把白格切成两块）',
+});
+
 /**
  * 文本形式 → face。每行是一个字符串或 token 数组；token = '.' | '?' | 非负整数（多位可，
  * 字符串行需以空格分隔才能写两位数）。

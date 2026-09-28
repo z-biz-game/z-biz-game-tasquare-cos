@@ -38,14 +38,20 @@
 //   §9 一份几何两个消费者  同一张题面上裁判的 MRV 序与行序必须数出同一个 count、两者的方形表
 //                      计数必须与铅笔同源；且在唯一解那张（满线索对照盘）上铅笔零猜测推完的
 //                      涂黑必须逐格等于裁判交回的那一个解。共享 squareTable() 之后最容易坏的就是这条。
+//   §10 条款文字表     CLAUSE_TEXT 的键集必须**等于** verify() ∪ verifyAreas() 实际能吐出的 code 集
+//                      （新增 code 却没配文字 ⇒ 页面上出现没人见过的代号；配了文字却打不出来 ⇒
+//                       规则面板挂着一条不存在的条款）；铅笔 CLAUSES 引的 [R*] 必须都在表里；
+//                       SOURCE_QUOTE 的五条 bullet 关键短语必须在 —— 页面读这两份常量，HTML 里
+//                       再抄一份就会漂，所以把"抄的地方"变成被测的地方。
 
 import {
   FREE, QMARK, UNK, BLK, WHT, DEFAULTS, makeFace, cloneFace, faceTokens, faceRows,
   blacksOf, neighbours, components, squareTable, contribOf, clueReading, whitesConnected,
-  verify, verifyAreas, areasToBlacks,
+  verify, verifyAreas, areasToBlacks, CLAUSE_TEXT, SOURCE_QUOTE, SOURCE_URL,
 } from '../js/engine/rules.js';
 import { countSolutions, auditSolutions } from '../js/engine/counter.js';
-import { pencilSolve, auditLedger, auditState, RULES } from '../js/engine/pencil.js';
+import { pencilSolve, auditLedger, auditState, RULES, CLAUSES } from '../js/engine/pencil.js';
+import { makeRng } from '../js/engine/rng.js';
 
 console.log('================================================================================');
 console.log('TASQUARE RULE-TEST — 词汇表 / 几何引理 / 合法定义 / 两个消费者共用一份几何');
@@ -374,5 +380,53 @@ console.log('\n[§9 共享 squareTable 之后：裁判两版挑格与铅笔必�
   ok('§9 stopped 的盘不是读数（exact=false）', tight.exact === false, `count=${tight.count} exact=${tight.exact}`);
 }
 
-console.log(`\nRULE-TEST ${checks} checks / ${fails} failed`);
-process.exit(fails ? 1 : 0);
+// ---------------------------------------------------------------- §10 条款文字表
+console.log('\n[§10 CLAUSE_TEXT / SOURCE_QUOTE：页面的文字来源必须对得上引擎]');
+{
+  // 观察集 = verify() 在随机涂黑上真能吐出的 code（两种 allowSingle）∪ verifyAreas 的 code。
+  // 并集是必需的，因为 R3 在极大分量口径下**结构性**打不出（§5：两区并成一个非方形分量只剩 R2），
+  // 只看 verify() 会把"挂着一条打不出的条款"当成 bug 报出来。
+  const rnd = makeRng('rt|clause-text');
+  const seen = new Set();
+  for (const v of verifyAreas(baseFace(), [{ r: 0, j: 0, s: 2 }, { r: 2, j: 1, s: 1 }]).violations) seen.add(v.code);
+  for (let trial = 0; trial < 400; trial++) {
+    const h = 3 + ((rnd() * 3) | 0), w = 3 + ((rnd() * 3) | 0);
+    const rows = [];
+    for (let r = 0; r < h; r++) {
+      const line = [];
+      for (let j = 0; j < w; j++) { const x = rnd(); line.push(x < 0.18 ? '?' : x < 0.34 ? String((rnd() * 13) | 0) : '.'); }
+      rows.push(line.join(' '));
+    }
+    const f = makeFace(rows);
+    const bs = new Uint8Array(h * w);
+    for (let i = 0; i < bs.length; i++) bs[i] = rnd() < 0.35 ? 1 : 0;
+    for (const allowSingle of [true, false]) for (const v of verify(f, bs, { allowSingle })) seen.add(v.code);
+    const areas = [];
+    for (let k = 0; k < 3; k++) areas.push({ r: (rnd() * h) | 0, j: (rnd() * w) | 0, s: 1 + ((rnd() * 3) | 0) });
+    for (const v of verifyAreas(f, areas).violations) seen.add(v.code);
+  }
+  const keys = Object.keys(CLAUSE_TEXT);
+  const unsaid = keys.filter((c) => !seen.has(c)).sort();
+  ok('§10 文字表里每个句子都被引擎真的打出来过（挂着一条打不出的条款就是编的）',
+    unsaid.length === 0, `表里 ${keys.length} 条全部命中 · 多余：${unsaid.join(',') || '无'}`);
+  const unknown = [...seen].filter((c) => !CLAUSE_TEXT[c]).sort();
+  ok('§10 引擎能吐出的每个 code 都在文字表里有句子（页面不许出现没人见过的代号）',
+    unknown.length === 0, `观察到 ${[...seen].sort().join(',')} · 无句子：${unknown.join(',') || '无'}`);
+  const mislabeled = keys.filter((c) => !CLAUSE_TEXT[c].startsWith(`[${c}]`));
+  ok('§10 每条句子以 [自己的 code] 开头（读者能把页面上的话对回违反记录）',
+    mislabeled.length === 0, mislabeled.join(',') || '七条全对');
+  // 铅笔的"为什么"引的是条款编号；编号指向文字表里没有的那条，页面上就是一句没有出处的话。
+  const cited = [...new Set(Object.values(CLAUSES).flatMap((s) => (s.match(/\[R\d+[a-z]*\]/g) || []).map((x) => x.slice(1, -1))))].sort();
+  const dangling = cited.filter((c) => !CLAUSE_TEXT[c]);
+  ok('§10 铅笔 CLAUSES 引用的每个 [R*] 都在文字表里（提示的"为什么"不许指向空）',
+    dangling.length === 0 && cited.length >= 6, `引用 ${cited.join(',')} · 悬空 ${dangling.join(',') || '无'}`);
+  const q = SOURCE_QUOTE.join(' ');
+  const need = ['can not be blacken', 'square areas', 'must not be orthogonally adjacent',
+    'total number of black cells', 'at least one adjacent black cell', 'white cells must be connected'];
+  const missing = need.filter((s) => !q.includes(s));
+  ok('§10 SOURCE_QUOTE 仍是那段含六条逐字短语的引文（页面印引文原文，不是我们的转述）',
+    missing.length === 0 && SOURCE_QUOTE.length >= 8, `${SOURCE_QUOTE.length} 行 · 缺：${missing.join(' / ') || '无'}`);
+  ok('§10 SOURCE_URL 是 https 且指向规则的唯一出处', /^https:\/\/www\.cross-plus-a\.com\//.test(SOURCE_URL), SOURCE_URL);
+}
+
+console.log(`\nRULE-TEST ${checks} checks / ${fails} failed`);process.exit(fails ? 1 : 0);
