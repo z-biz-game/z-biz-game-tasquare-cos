@@ -16,7 +16,9 @@
 //                     （Yajilin 烧过：裁完线索之后 board.black 不再是任何解）。
 //   C 同尺寸对照   —— 难度轴是线索数而不是格子数，所以同尺寸的相邻两档步数分布必须分得开
 //   D/E 负控与证人 —— "故意掐预算"的负控必须真的打出对应反应；不可约档的每条幸存线索必须
-//                     **现删现数**都被证明删不掉（F 节），band 收窄一档要被现样本推翻（E4）
+//                     **现删现数**都被证明删不掉（F 节），band 收窄一档要被现样本推翻（E4）。
+//                     D 还钉住**随机流本身**的金标准（u32 序列 / 洗牌序 / hash32 三个定值）：
+//                     同 seed 的两次调用互比抓不到 PRNG 被改 —— 两侧会一起漂，只有定值能。
 //   G 语义旋钮     —— printZero / allowSingle / readA 参与判定的证据（换掉它们是换游戏）
 //   H 饱和点       —— 同 seed 配对只换 target，证明"裁到 4 条"是一个不存在的旋钮
 //
@@ -32,7 +34,7 @@ import {
 import { DEFAULTS, FREE, faceTokens, verify, cloneFace } from '../js/engine/rules.js';
 import { countSolutions } from '../js/engine/counter.js';
 import { pencilSolve, BLK } from '../js/engine/pencil.js';
-import { makeRng } from '../js/engine/rng.js';
+import { makeRng, shuffled, hash32 } from '../js/engine/rng.js';
 
 const SAMPLES = Math.max(4, Number(process.env.SAMPLES ?? 20));
 // 档位定价要靠**两批**独立随机数，而不是把同一批跑两遍：SEED_PREFIX 换的只是 seed 串的前缀
@@ -175,6 +177,19 @@ console.log('\n[D 一张 seed 串一张盘（跨调用、跨"时钟"）]');
   ok('D 不同 seed ⇒ 不同盘（防止 seed 被静默忽略）', distinct && seen.size >= 8, `${seen.size} 张互不相同${dup.length ? ' · 重复 ' + dup.join(',') : ''}`);
   // 未知档位必须抛，不许悄悄回落到某一档
   ok('D 未知档位必须抛', (() => { try { produce('nope', 1); return false; } catch { return true; } })(), 'produce("nope") 没有返回盘也没被当成默认档');
+  // 上面两条比的都还是**同一次运行里的两次调用**：谁改了 PRNG，两侧会一起漂，两条照样绿，
+  // 而 TIERS 里每一批实测读数就此失去解释（同一串 seed 不再是同一张盘）。这一条把随机流本身
+  // 钉成金标准 —— 它是"改 PRNG 必须红"的那道门，不是对某个特定机器的观察。
+  const GOLD_U32 = [227477879, 4161101219, 2136465644, 834498531, 2923666948];   // makeRng('golden|tasquare') 前 5 个
+  const g = makeRng('golden|tasquare');
+  const gotU32 = GOLD_U32.map(() => (g() * 4294967296) >>> 0).join(',');
+  ok('D 随机流金标准：同一串 seed 的前 5 个 u32 逐位不变', gotU32 === GOLD_U32.join(','), `期望 ${GOLD_U32.join(',')} · 实得 ${gotU32}`);
+  const gotShuf = shuffled([...Array(10).keys()], makeRng('golden|tasquare')).join('');
+  ok('D 洗牌金标准：比较器不吃随机数 ⇒ 同一串 seed 下 0..9 的序是定值（抽完再排，跨引擎同序）',
+    gotShuf === '6792541380', `期望 6792541380 · 实得 ${gotShuf}`);
+  const gotH = [hash32(''), hash32('golden|tasquare'), hash32('tasquare|easy-6x6|0')].join(',');
+  ok('D hash32 金标准：FNV 偏移量与质数不可改', gotH === '2166136261,942340376,1189925988',
+    `期望 2166136261,942340376,1189925988 · 实得 ${gotH}`);
 }
 
 // ---------------------------------------------------------------- E 负控
