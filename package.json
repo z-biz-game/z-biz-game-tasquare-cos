@@ -3,17 +3,24 @@
   "version": "0.1.0",
   "description": "たすくえあ Tasquare · 方格 —— 黑格拼成互不共边的正方形区，圈内数字＝邻接黑区格数之和、? ＝至少邻一个黑格、白格全连通。裁判 countSolutions 穷举回答唯一性，铅笔 pencilSolve 零猜测回答可推性，两者对同一批候选方形说话。页面无构建、零依赖、无图片音频。",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node server.cjs",
     "dev": "node server.cjs 5611",
     "prefix": "PREFIX=/z-biz-game-tasquare-cos PORT=5612 node server.cjs",
     "test": "node tools/rule-test.mjs && node tools/counter-test.mjs && node tools/pencil-test.mjs && SAMPLES=24 node tools/balance.mjs",
+    "rule": "node tools/rule-test.mjs",
     "counter": "node tools/counter-test.mjs",
     "pencil": "node tools/pencil-test.mjs",
     "balance": "SAMPLES=60 node tools/balance.mjs",
-    "check": "for f in $(find js tools -name '*.js' -o -name '*.mjs'); do node --check \"$f\" || exit 1; done && node --check server.cjs && echo OK",
+    "check": "for f in $(find js tools \\( -name '*.js' -o -name '*.mjs' -o -name '*.cjs' \\)); do node --check \"$f\" || exit 1; done && node --check server.cjs && echo OK",
     "verify": "bash tools/verify.sh",
-    "verify:local": "SHAPES=root bash tools/verify.sh"
+    "verify:local": "SHAPES=root bash tools/verify.sh",
+    "verify:deployed": "DEPLOYED_URL=https://z-biz-game.github.io/z-biz-game-tasquare-cos/ SHAPES=deployed bash tools/verify.sh",
+    "wiring": "bash tools/wiring-check.sh",
+    "ci": "npm run check && npm run wiring && npm test"
   },
   "keywords": ["game", "puzzle", "tasquare", "tasukuea", "squares", "nikoli", "unique-solution", "procedural", "web"],
   "author": "z-biz-game",

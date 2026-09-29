@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: syntax + four node gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        # 22 = package.json 的 engines.node。两个 job 同版本是故意的：版本不一致时"check 绿 browser 红"
+        # 这种读数要先把版本差排除掉才能读，而下面那个 job 用裸 CDP（全局 WebSocket/fetch）本来就 ≥22。
+        with:
+          node-version: 22
+
+      # 不装依赖：零运行时依赖、无构建。把包图拉进 CI 来证明一件事都证明不了，
+      # 换来的是"网络抖一下 main 就红"。
+      # tools/ 里两种模块形状并存：scenarios.js 走 ESM（package.json type=module），
+      # playtest.cjs / server.cjs 走 CJS。两条通配都要写上，漏一条就是那条文件从此没人检语法。
+      - name: Syntax check every source
+        run: |
+          for f in $(git ls-files 'js/*.js' 'js/*/*.js'); do node --check "$f" || exit 1; done
+          for f in $(git ls-files 'tools/*.mjs' 'tools/*.cjs' 'tools/*.js'); do node --check "$f" || exit 1; done
+          node --check server.cjs
+
+      # 分层不变量 + 入口接线 + workflow manifest + 工件形状：这四段门**住在 tools/wiring-check.sh 里**，
+      # 不在这里的 inline run: 里。理由是兄弟仓踩过的那颗：只存在于 CI 的门本机跑不到，红的时候
+      # 现场只能放宽它。现在本机的 `npm run ci` 调同一个脚本，一条门只有一份定义。
+      # 这个 job 里唯一还留着的"CI 独有"东西是下面四道 node 闸与浏览器闸 —— 那些命令本机原样能跑
+      # （npm test / bash tools/verify.sh），README 与 docs/DESIGN.md 都写了怎么跑。
+      - name: Wiring gate (layering, entry wiring, workflow manifest, artifact shape)
+        run: bash tools/wiring-check.sh
+
+      # 没有 `node --test test/`：本仓根本没有 test/ 目录，单元测试的形状就是下面四道闸本身。
+      - name: Rule gate (语义 + 条款文字表 + 出处引文)
+        run: node tools/rule-test.mjs
+
+      - name: Counter gate (穷举裁判 · 独立打包通道 · 预算归因)
+        run: node tools/counter-test.mjs
+
+      - name: Pencil gate (每条结论对全部解成立 · 账本自审)
+        run: node tools/pencil-test.mjs
+
+      # 难度实测台：TIERS[].band /[].steps /[].carve 是这张表量出来回填进 js/engine/generate.js 的
+      # 选择目标，不是标签。24 只是 CI 的抽样量；**回填表要用 `npm run balance`（SAMPLES=60）**，
+      # 分位表在 24 上不稳，拿 24 的读数改表会把表定歪。
+      - name: Balance gate (档位定价 · 出货三通道现复核 · 负控)
+        env:
+          SAMPLES: "24"
+        run: node tools/balance.mjs
+
+  # 第五道闸：真 headless Chrome、真 DOM、真 localStorage、真指针、真按键、真刷新。
+  # tools/verify.sh 自己跑两种 URL 形态（仓库=文档根的 root 形态 5611，Pages 的 /<repo>/ 前缀形态 5612），
+  # 每形态 11 条腿（open domint playfull illegal pointer keyboard narrow resume reject crossengine canary），
+  # 本机实测 183 条断言/形态。Chrome 起停按**形态**而不是按腿，profile 各形态一份、只杀自己起的 pid。
+  # 第三种形态（DEPLOYED_URL=https://z-biz-game.github.io/z-biz-game-tasquare-cos/）**不接进 CI**：
+  # Pages 落地有传播延迟，接进来只会得到一条与代码无关的"有时红"。它在本仓是上线后手工跑的。
+  # python3 是 verify.sh 自己 require 的（解析 RESULT 行），ubuntu-latest 镜像自带，不 apt 装任何东西。
+  browser:
+    name: real browser gate (both URL shapes)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Browser gate (root + prefix)
+        env:
+          # 与 tools/verify.sh 自己的默认值一致（`WD_TIMEOUT:-2100`）。看门狗不是打分预算：
+          # 把它调大不会让一条红的闸变绿，只能让看门狗别替闸作决定。
+          WD_TIMEOUT: 2100
+        run: bash tools/verify.sh

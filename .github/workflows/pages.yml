@@ -1,0 +1,61 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # 无构建 = 文件拷贝：游戏发的是原生 ES module，站点内容就是 index.html + css/ + js/。
+      # 只有这些路径会从 index.html 里被够到。server.cjs、tools/（五道闸与 bench）、docs/、
+      # package.json 留在工件之外，也顺手把 node_modules 留在外面 —— `path: .` 会连它一起上传。
+      #
+      # 版本三元组是真实存在的那一组：configure-pages@v5 / upload-pages-artifact@v3 / deploy-pages@v4。
+      # 老的 (v3/v1/v2) 在 marketplace 上 404 而 run 仍然报绿 —— 那就是"部署悄悄停止部署"的形状。
+      # Pages 必须先开成 workflow 构建（本仓在推送这份工作流之前已经 POST /pages 建好），
+      # 否则 configure-pages@v5 直接红。
+      - name: Assemble static site
+        run: |
+          mkdir _site
+          cp index.html _site/
+          cp -r css js _site/
+      # 工件边界：门禁代码一旦进了线上那份，"线上跑的正是这个仓"这句话就开始包含 tools/，
+      # 而浏览器闸对部署形态只看得到页面 —— 泄漏不会被任何一条腿发现。
+      - name: Artifact boundary
+        run: |
+          test ! -e _site/tools
+          test ! -e _site/server.cjs
+          test ! -e _site/package.json
+          test -f _site/index.html
+          test -f _site/css/style.css
+          test -f _site/js/ui/app.js
+          test -f _site/js/engine/generate.js
+      # 这两步必须真的存在，不是注释里的名字。少了 upload-pages-artifact，deploy job 会拿着一个
+      # 不存在的工件继续跑；少了 configure-pages，pages 的 environment 就没被绑定。
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
