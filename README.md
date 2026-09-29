@@ -49,11 +49,15 @@ npm run prefix       # http://127.0.0.1:5612/z-biz-game-tasquare-cos/   （GitHu
 
 ```bash
 npm run check            # 逐文件 node --check：js/ 与 tools/ 全进去（ESM 与 CJS 两种形状），含 server.cjs
+npm run wiring           # 边界门：分层 / 入口接线 / 两份 workflow 的 manifest / _site 的工件形状
 npm test                 # 四道 node 闸：rule-test 98 · counter-test 32 · pencil-test 46 · balance 70
 npm run ci               # = check + wiring + test，本机跑通 ci.yml 的 check job
 npm run verify           # 第五道闸：真 headless Chrome，11 条腿 × 两种 URL 形态（各 183 条断言）
-npm run verify:deployed  # 线上那一份字节上的同一套腿（需要 Pages 已发布）
+npm run verify:deployed  # 同一套腿跑在线上那份字节上（已跑过：11 腿 / 183 断言 / rc=0，见 docs/DESIGN.md §10）
 ```
+
+那四段边界门住在 `tools/wiring-check.sh` 而不是 workflow 的 `run:` 里：CI 与本机调**同一个脚本**，
+一条门只有一份定义 —— 只存在于 CI 的门在本机跑不到，红的时候现场只剩"放宽它"。
 
 每道闸守的东西不重叠：`rule-test` 守语义与词汇表（含页面上每句话的出处），`counter-test` 守裁判
 与一条**独立实现的打包枚举**（`tools/lib-packing.mjs`，完全不看线索数值）互相对账，`pencil-test` 守
