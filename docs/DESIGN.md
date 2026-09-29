@@ -169,10 +169,10 @@ CI 的 `check job` 每一步在本机都有同一条命令：`npm run ci` = `npm
 
 ## 10 量到哪、没量到哪
 
-- **部署形态那遍浏览器闸：量过了。** `ef1981d` 推上 main、Pages 发布之后，
-  `npm run verify:deployed`（`SHAPES=deployed`）在线上那一份字节上跑完 11 条腿：
+- **部署形态那遍浏览器闸：量过两遍，读数逐条相同。** `ef1981d`（引擎与 UI）与 `53d3a09`（只动这两份文档）
+  各自推上 main、Pages 发布之后，`npm run verify:deployed`（`SHAPES=deployed`）都在线上那一份字节上跑完 11 条腿：
   `scored 1 of 1 shapes · deployed legs 11/11 · 断言 183 条 · FAIL 0 · GATE_RC=0`（2026-09-29，
-  Chrome 154 / node v26，工件在 `_tmp-tasquare-verify-deployed.log`）。
+  Chrome 154.0.8037.58 / node v26.8.1，两遍工件在仓外 `_tmp-tasquare-verify-deployed*.log`）。
   同一遍还留了两条对账：线上 `/` 的 sha256 前缀与仓内 `index.html` 相同，
   而 `/tools/verify.sh`、`/server.cjs`、`/package.json` 都是 404 —— 工件边界在线上成立，不只是在 CI 里成立。
   这一腿**仍然不接进 CI**：Pages 落地有传播延迟，接进来只会多一条与代码无关的"有时红"。
