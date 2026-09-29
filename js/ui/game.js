@@ -135,6 +135,3 @@ export function cellsOf(face) {
   }
   return out;
 }
-
-/** 供闸做拒盘 canary：把探针预算掐死，同一局号就会走 reject 分支。 */
-export const rejectProbe = (tierKey, round) => produce(tierKey, round, { probe: { nodeCap: 40, msCap: Infinity } });
