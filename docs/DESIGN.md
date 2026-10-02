@@ -126,7 +126,7 @@ loadavg、对象遍历序；**所有排序的随机键都在 `sort` 之前抽成
 | counter | `node tools/counter-test.mjs` | 裁判对一条**独立实现的打包枚举**（`tools/lib-packing.mjs`，完全不看线索数值）；两条保险丝各自署名；256 节点节拍的两侧 | 32 checks / 0 failed（语料 22 张题面）|
 | pencil | `node tools/pencil-test.mjs` | 每条结论对**全部解**成立；八条规则没命中的必须被点名；`overrun` 不许静当成"推完了"；账本自审不出越轨 | 46 checks / 0 failed |
 | balance | `npm run balance`（回填表用 SAMPLES=60）/ CI 用 24 | 档位定价与生产路径的形状：§A 结构不变量、§B 出货率、§C 难度轴、§D seed、§E 负控、§F 不可约、§G 三条语义、§H 饱和点 | 70 checks / 0 failed（SAMPLES=24/档，4 档）|
-| session | `node tools/session-test.mjs` | 存档坏一条只丢那一条（两段解码）、30/60/120Hz 三档定步对拍**并要求阴性对照红一次**、静音是真 `suspend()` 而不是 gain=0 | 151 checks / 0 failed（三档 12 个字段比值全 = 1.000000；变异体 3.9834 > 3.6 判红）|
+| session | `npm run session` | 十一段：存档坏一条只丢那一条（两段解码）、30/60/120Hz 三档定步对拍**并要求阴性对照红一次**、静音是真 `suspend()` 而不是 gain=0、指针坐标先减 rect 再按 CSS 尺度除、SW 网络优先与 SHELL 的磁盘存在性、`file:` 下静默跳过注册 | 195 checks / 0 failed（三档 12 个字段比值全 = 1.000000；变异体 3.9834 > 3.6 判红）|
 | browser | `npm run verify` | 真 headless Chrome、真 DOM、真 localStorage、真指针、真按键、真刷新：11 条腿（open domint playfull illegal pointer keyboard narrow resume reject crossengine canary）× 两种 URL 形态 | 183 断言/形态 · rc=0（部署形态另跑一遍同样 183 条，读数在 §10）|
 | 边界门（不是 node 闸，所以不占"第几道闸"的号）| `bash tools/wiring-check.sh` | 四段：`js/` 不 import `tools/`（import 形状的正则，注释里提一句不算命中）、入口接线 13 条、两份 workflow 的 manifest、`_site` 的工件形状 | WIRING-CHECK PASS · rc=0；四段各被一次性副本破坏过一次，四次都 rc=1 |
 

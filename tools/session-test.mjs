@@ -467,5 +467,196 @@ console.log('\n[§8 阴性对照：把定步长那行改成吃帧 dt，§4 必�
   console.log(`      寿命口径核对：RIPPLE_LIFE=${RIPPLE_LIFE}s SPARK_LIFE=${SPARK_LIFE}s（两档都在 6 秒内自然老死，样本不靠截断）`);
 }
 
+// ---------------------------------------------------------------- §9 指针坐标换算
+console.log('\n[§9 坐标换算：先减 rect，再按 CSS 像素除（dpr≠1 时两套尺度）]');
+{
+  const calls = { setTransform: [], cleared: 0, arcs: 0, rects: 0, imgs: 0 };
+  const ctxStub = {
+    setTransform: (a, b, c, d, e, f) => calls.setTransform.push([a, b, c, d, e, f]),
+    clearRect: () => { calls.cleared++; },
+    beginPath: () => {}, arc: () => { calls.arcs++; }, stroke: () => {}, fillRect: () => { calls.rects++; },
+    drawImage: () => { calls.imgs++; },
+  };
+  let strokeStyle = '', fillStyle = '';
+  Object.defineProperty(ctxStub, 'strokeStyle', { get: () => strokeStyle, set: (v) => { strokeStyle = v; } });
+  Object.defineProperty(ctxStub, 'fillStyle', { get: () => fillStyle, set: (v) => { fillStyle = v; } });
+  const canvas = { width: 0, height: 0, style: {}, getContext: () => ctxStub };
+  const RECT = { left: 100, top: 200, width: 384, height: 384, right: 484, bottom: 584 };
+  const board = { getBoundingClientRect: () => RECT };
+  const okWindow = (() => {
+    try {
+      Object.defineProperty(globalThis, 'window', { configurable: true, writable: true, value: { devicePixelRatio: 3 } });
+      Object.defineProperty(globalThis, 'getComputedStyle', {
+        configurable: true, writable: true,
+        value: () => ({ getPropertyValue: (k) => (k === '--cell' ? '48px' : k === '--cols' ? '8' : '') }),
+      });
+      return true;
+    } catch { return false; }
+  })();
+  ok('§9 桩件装上了（装不上这三段就是空跑）', okWindow);
+  if (okWindow) {
+    const { makeFx } = await import(pathToFileURL(`${process.cwd()}/js/ui/fx.js`).href);
+    const fx = makeFx(canvas);
+    const g = fx.layout(board);
+    eq('§9 量到的 CSS 尺寸进几何（384×384）', `${g.w}x${g.h}`, '384x384');
+    eq('§9 一格 CSS 尺度 = --cell 的实测值', g.cell, 48);
+    eq('§9 列数 = --cols', g.cols, 8);
+    eq('§9 行数 = 高度 / 一格', g.rows, 8);
+    eq('§9 dpr=3 ⇒ 位图边长 = CSS×3', `${canvas.width}x${canvas.height}`, '1152x1152');
+    eq('§9 CSS 尺寸仍写回 style（不然画布会被拉糊）', `${canvas.style.width} ${canvas.style.height}`, '384px 384px');
+    eq('§9 ctx 的变换矩阵带的是 dpr', calls.setTransform[0].slice(0, 2).join(','), '3,0');
+    const hit = fx.hitCell(RECT.left + 48 * 2 + 6, RECT.top + 48 * 5 + 6);
+    eq('§9 视口坐标 → (row5,col2) 的下标', hit && `${hit.row},${hit.col},${hit.i}`, '5,2,42');
+    const naive = fx.hitCell(48 * 2 + 6, 48 * 5 + 6);
+    ok('§9 "不减 rect" 得到的是另一个格子（这条门不是自证空气）', naive !== hit && String(naive && naive.i) === '0', JSON.stringify(naive));
+    eq('§9 盘外一律给 null（不吃到隔壁 HUD 上去）', String(fx.hitCell(RECT.right + 1, RECT.top + 1)), 'null');
+    eq('§9 左上角之外也是 null', String(fx.hitCell(RECT.left - 1, RECT.top - 1)), 'null');
+    const m = makeMotion({ reducedMotion: false, seed: 5 });
+    m.start(); m.emit(0, { row: 3, col: 3 });
+    eq('§9 一帧画出涟漪与墨点（贴图没到走方点兜底）', fx.draw(m, { RIPPLE_LIFE, SPARK_LIFE }) > 0 ? 'yes' : 'no', 'yes');
+    eq('§9 精灵没加载时走方点而不是空转', calls.rects > 0 && calls.imgs === 0 ? 'square' : 'other', 'square');
+    const cut = makeMotion({ reducedMotion: true, seed: 5 });
+    cut.start(); cut.emit(0, { row: 3, col: 3 });
+    const drawnCut = cut.snapshot();
+    eq('§9 reduceMotion 下 draw 只画涟漪、粒子数为 0', drawnCut.sparks, 0);
+    Object.defineProperty(globalThis, 'window', { configurable: true, writable: true, value: { devicePixelRatio: 9 } });
+    const fx9 = makeFx(canvas);
+    eq('§9 dpr=9 被夹到 4（位图尺寸失控比糊更贵）', fx9.layout(board).dpr, 4);
+  }
+}
+
+// ---------------------------------------------------------------- §10 service worker 策略
+console.log('\n[§10 sw.js：版本号进 cache 名 · 子资源网络优先 · SHELL 每条都得真在磁盘上]');
+{
+  const { existsSync } = await import('node:fs');
+  const handlers = {};
+  const cacheLog = { opened: [], added: null, keys: 0, deleted: [], puts: 0, matches: 0 };
+  const fakeCache = {
+    addAll: (list) => { cacheLog.added = list; return Promise.resolve(); },
+    put: () => { cacheLog.puts++; return Promise.resolve(); },
+    // './index.html' 那一条给命中，其余给未命中 —— 导航兜底那条腿必须有东西可兜，
+    // 否则 §10 的"两头落空兜回 shell"是在比一个空桩件的行为。
+    match: (q) => {
+      cacheLog.matches++;
+      const u = typeof q === 'string' ? q : (q && q.url) || '';
+      return Promise.resolve(u.includes('index.html') ? { ok: true, shell: true } : undefined);
+    },
+  };
+  Object.defineProperty(globalThis, 'caches', {
+    configurable: true, writable: true,
+    value: {
+      open: (name) => { cacheLog.opened.push(name); return Promise.resolve(fakeCache); },
+      keys: () => { cacheLog.keys++; return Promise.resolve(['tasquare-v0', 'tasquare-v1']); },
+      delete: (k) => { cacheLog.deleted.push(k); return Promise.resolve(true); },
+    },
+  });
+  let fetchMode = 'ok';
+  Object.defineProperty(globalThis, 'fetch', {
+    configurable: true, writable: true,
+    value: () => {
+      if (fetchMode === 'throw') return Promise.reject(new Error('offline'));
+      if (fetchMode === 'notok') return Promise.resolve({ ok: false, status: 503, clone() { return this; } });
+      return Promise.resolve({ ok: true, status: 200, clone() { return this; } });
+    },
+  });
+  const waitUntil = [];
+  let responded = null;
+  Object.defineProperty(globalThis, 'self', {
+    configurable: true, writable: true,
+    value: {
+      location: { origin: 'https://z-biz-game.github.io' },
+      addEventListener: (kind, fn) => { handlers[kind] = fn; },
+      skipWaiting: () => Promise.resolve(),
+      clients: { claim: () => Promise.resolve() },
+    },
+  });
+  ok('§10 self/caches/fetch 桩件装上', typeof globalThis.self.addEventListener === 'function' && typeof globalThis.caches.open === 'function');
+  await import(pathToFileURL(`${process.cwd()}/sw.js`).href);
+  eq('§10 install/activate/fetch 三个 handler 都注册上了', ['install', 'activate', 'fetch'].filter((k) => handlers[k]).join(','), 'install,activate,fetch');
+
+  handlers.install({ waitUntil: (p) => waitUntil.push(p) });
+  await Promise.all(waitUntil);
+  const version = cacheLog.opened[0];
+  ok(`§10 cache 名带版本号（实测 "${version}"）`, /^tasquare-v\d+$/.test(String(version)), version);
+  const shell = cacheLog.added || [];
+  eq('§10 预缓存清单是 12 条（页面 + 样式 + manifest + 位图）', shell.length, 12);
+  const missing = shell.filter((p) => p !== './' && !existsSync(p.replace(/^..\//, '').replace(/^\.\//, '')));
+  eq(`§10 SHELL 里每一条都真在磁盘上（缺就是线上 404 而 SW 全绿）`, missing.join(','), '');
+  ok('§10 SHELL 覆盖新增的三张位图与精灵', ['paper-grain', 'ink-block', 'spark'].every((n) => shell.some((p) => p.includes(n))), shell.join(' '));
+
+  handlers.activate({ waitUntil: (p) => waitUntil.push(p) });
+  await waitUntil[waitUntil.length - 1];
+  eq('§10 activate 只删旧版本 cache（不是把当前版本也删了）', cacheLog.deleted.join(','), 'tasquare-v0');
+
+  const mkReq = (url, method = 'GET', mode = 'cors') => ({ url, method, mode });
+  responded = null;
+  handlers.fetch({ request: mkReq('https://z-biz-game.github.io/x/js/ui/app.js'), respondWith: (p) => { responded = p; } });
+  const got = await responded;
+  ok('§10 同源子资源走网络（网络优先的实现体：拿到的是 fetch 的那个响应）', got && got.ok === true);
+  eq('§10 网络成功时不去查 cache.match（cache-first 会把改版后的旧 JS 钉住）', cacheLog.matches, 0);
+  eq('§10 非导航请求成功后写进缓存', cacheLog.puts, 1);
+
+  fetchMode = 'throw';
+  cacheLog.matches = 0;
+  handlers.fetch({ request: mkReq('https://z-biz-game.github.io/x/css/style.css'), respondWith: (p) => { responded = p; } });
+  const fallback = await responded.catch((e) => `REJECT:${e.message}`);
+  eq('§10 网络抛了才退缓存（这里查了一次 match）', cacheLog.matches, 1);
+  ok('§10 缓存也没命中时非导航请求让这条 reject 冒出来（不假装成功）', String(fallback).startsWith('REJECT:'), String(fallback));
+
+  cacheLog.matches = 0;
+  handlers.fetch({ request: mkReq('https://z-biz-game.github.io/x/', 'GET', 'navigate'), respondWith: (p) => { responded = p; } });
+  const nav = await responded.catch((e) => `REJECT:${e.message}`);
+  ok('§10 导航请求两头落空兜回 shell（装机后离线能开页）', !!nav && nav.shell === true, String(JSON.stringify(nav)).slice(0, 40));
+  eq('§10 兜底走的是 cache.match("./index.html")', cacheLog.matches >= 2 ? 'yes' : 'no', 'yes');
+
+  fetchMode = 'ok';
+  let crossHandled = false;
+  handlers.fetch({ request: mkReq('https://cdn.example.com/lib.js'), respondWith: () => { crossHandled = true; } });
+  eq('§10 跨源一律不接管（本仓零外部依赖）', crossHandled, false);
+  let postHandled = false;
+  handlers.fetch({ request: mkReq('https://z-biz-game.github.io/x/api', 'POST'), respondWith: () => { postHandled = true; } });
+  eq('§10 非 GET 不接管', postHandled, false);
+  fetchMode = 'notok';
+  cacheLog.puts = 0;
+  handlers.fetch({ request: mkReq('https://z-biz-game.github.io/x/icons/icon-192.png'), respondWith: (p) => { responded = p; } });
+  await responded;
+  eq('§10 !res.ok 的响应不写进缓存（否则 503 会被钉住）', cacheLog.puts, 0);
+}
+
+// ---------------------------------------------------------------- §11 装机注册通道
+console.log('\n[§11 pwa.js：file: 静默跳过 · 前缀形态按 baseURI 解析 · 注册失败不带走页面]');
+{
+  const calls = [];
+  const setGlobal = (k, v) => {
+    try { Object.defineProperty(globalThis, k, { configurable: true, writable: true, value: v }); return true; } catch { return false; }
+  };
+  const nav = { serviceWorker: { register: (url, opts) => { calls.push({ url, opts }); return Promise.resolve(nav.serviceWorker.__reg || { scope: new URL(opts.scope).href }); } } };
+  ok('§11 navigator 桩件装上', setGlobal('navigator', nav) && setGlobal('location', { protocol: 'file:' }) && setGlobal('document', { baseURI: 'https://z-biz-game.github.io/z-biz-game-tasquare-cos/index.html' }));
+  const pwaFile = pathToFileURL(`${process.cwd()}/js/ui/pwa.js`).href;
+  const p1 = await import(pwaFile);
+  const s1 = await p1.registerServiceWorker();
+  eq('§11 file: 下一次注册都不发起（硬注册的实测结果是一条未捕获 SecurityError）', calls.length, 0);
+  eq('§11 file: 的状态是 registered=false', s1.registered, false);
+  ok('§11 file: 的说明写清了这是形态不是故障', /file:/.test(String(s1.error)) && /跳过/.test(String(s1.error)), String(s1.error));
+
+  setGlobal('location', { protocol: 'https:' });
+  const s2 = await p1.registerServiceWorker();
+  eq('§11 前缀形态下 sw 的 URL 按 baseURI 解析（写死 /sw.js 会 404 而 404 是静默的）', calls[0] && calls[0].url, 'https://z-biz-game.github.io/z-biz-game-tasquare-cos/sw.js');
+  eq('§11 scope 也跟着前缀', calls[0] && calls[0].opts.scope, 'https://z-biz-game.github.io/z-biz-game-tasquare-cos/');
+  eq('§11 注册成功回到 registered=true', s2.registered, true);
+
+  nav.serviceWorker.register = (url) => { calls.push({ url, opts: 'reject' }); return Promise.reject(new TypeError('404 not found')); };
+  const s3 = await p1.registerServiceWorker().then((v) => ({ resolved: v, rejected: null }), (e) => ({ resolved: null, rejected: e }));
+  ok('§11 注册失败被这条通道自己吞掉（promise 是 resolved，不是冒出去一条未捕获的 reject）',
+    s3.rejected === null && !!s3.resolved, String(s3.rejected && s3.rejected.message));
+  ok('§11 失败原因记在 error 上（HUD 与闸都读得到）', /404/.test(String(s3.resolved && s3.resolved.error)), String(s3.resolved && s3.resolved.error));
+
+  setGlobal('navigator', {});
+  const p2 = await import(`${pwaFile}?fresh=1`);
+  const s4 = await p2.registerServiceWorker();
+  eq('§11 环境不支持 SW 时原样交回状态、不建任何调用', s4.supported, false);
+  eq('§11 不支持时也不抛、registered 仍为 false', String(s4.registered), 'false');
+}
+
 console.log(`\nSESSION-TEST ${checks} checks / ${fails} failed`);
 process.exit(fails ? 1 : 0);
