@@ -98,6 +98,8 @@ loadavg、对象遍历序；**所有排序的随机键都在 `sort` 之前抽成
   点的不是两套东西；闸的**node 那半边不 import 这个文件**，它直接叫同一批引擎函数现算期望
   （`tools/playtest.cjs` 明写"与 `js/ui/game.js` 的 `certify()` 同一条调用"）—— 期望因此不是第二套实现。
 - `js/ui/app.js` —— 只画、只派发事件。
+- `js/ui/motion.js` / `audio.js` / `store.js` / `fx.js` —— 时钟与动效（无 DOM，可在 node 里逐字段对拍）、
+  真静音的音频层、两段式解码的持久层、只画不吃指针的动效层。四件都不许下判定，也不许建第二份口径。
 
 三条口子内的规矩：
 
@@ -110,11 +112,13 @@ loadavg、对象遍历序；**所有排序的随机键都在 `sort` 之前抽成
   规则面板逐条从 `CLAUSE_TEXT` 现读（7 个 code：R1、R2、R2b、R3、R4、R5、R6 —— R2b 只在
   `allowSingle=false` 时才可能被打出，所以标题写"一条一个编号"而不是"六条"）。
   页面上出现没人见过的代号 = `rule-test` §10 的红。
-- 续玩走 `localStorage` 键 `tasquare:v1:<档>:<局号>`，只认与本题面同尺寸的存档，对不上就丢弃。
+- 续玩走 `localStorage` 键 `tasquare:v1:<档>:<局号>` → `{seed, marks}`，解码只有 `store.js` 一条路径：
+  尺寸对不上、seed 对不上、整条坏档都只丢那一条（坏一条不丢全档，`session-test` §1/§2 钉住），
+  而 `localStorage` 本身抛异常（Safari 隐私模式）也只吃掉并记 `lastError`，不让它拦下开机。
 - URL 是 `#<档>/<局号>`。手打一个不存在的档位/局号时，`hashchange` 会重新 `load()` 回页面真实的那一局 ——
   不许 URL 挂着页面对不上的一句话。
 
-## 7 五道闸 + 一段边界门，守的东西不重叠
+## 7 六道闸 + 一段边界门，守的东西不重叠
 
 | 闸 | 命令 | 守什么 | 这一跑的读数 |
 | --- | --- | --- | --- |
@@ -122,12 +126,13 @@ loadavg、对象遍历序；**所有排序的随机键都在 `sort` 之前抽成
 | counter | `node tools/counter-test.mjs` | 裁判对一条**独立实现的打包枚举**（`tools/lib-packing.mjs`，完全不看线索数值）；两条保险丝各自署名；256 节点节拍的两侧 | 32 checks / 0 failed（语料 22 张题面）|
 | pencil | `node tools/pencil-test.mjs` | 每条结论对**全部解**成立；八条规则没命中的必须被点名；`overrun` 不许静当成"推完了"；账本自审不出越轨 | 46 checks / 0 failed |
 | balance | `npm run balance`（回填表用 SAMPLES=60）/ CI 用 24 | 档位定价与生产路径的形状：§A 结构不变量、§B 出货率、§C 难度轴、§D seed、§E 负控、§F 不可约、§G 三条语义、§H 饱和点 | 70 checks / 0 failed（SAMPLES=24/档，4 档）|
+| session | `node tools/session-test.mjs` | 存档坏一条只丢那一条（两段解码）、30/60/120Hz 三档定步对拍**并要求阴性对照红一次**、静音是真 `suspend()` 而不是 gain=0 | 151 checks / 0 failed（三档 12 个字段比值全 = 1.000000；变异体 3.9834 > 3.6 判红）|
 | browser | `npm run verify` | 真 headless Chrome、真 DOM、真 localStorage、真指针、真按键、真刷新：11 条腿（open domint playfull illegal pointer keyboard narrow resume reject crossengine canary）× 两种 URL 形态 | 183 断言/形态 · rc=0（部署形态另跑一遍同样 183 条，读数在 §10）|
 | 边界门（不是 node 闸，所以不占"第几道闸"的号）| `bash tools/wiring-check.sh` | 四段：`js/` 不 import `tools/`（import 形状的正则，注释里提一句不算命中）、入口接线 13 条、两份 workflow 的 manifest、`_site` 的工件形状 | WIRING-CHECK PASS · rc=0；四段各被一次性副本破坏过一次，四次都 rc=1 |
 
 CI 的 `check job` 每一步在本机都有同一条命令：`npm run ci` = `npm run check`（逐文件 `node --check`，
-文件集与 CI 的 `git ls-files` 集合实测相同，14 个）+ `npm run wiring`（`tools/wiring-check.sh`：
-分层、入口接线、workflow manifest、工件形状四段门）+ `npm test`（四道 node 闸）。
+文件集与 CI 的 `git ls-files` 集合实测相同，20 个）+ `npm run wiring`（`tools/wiring-check.sh`：
+分层、入口接线、workflow manifest、工件形状四段门）+ `npm test`（五道 node 闸）。
 **这四段门住在脚本里而不是 workflow 的 `run:` 里** —— 只存在于 CI 的门本机跑不到，红的时候现场
 只能放宽它，那是比红更大的损失。脚本的第 3 段还会读 workflow 自己的 manifest：注释里承诺过的步骤
 如果没真的存在（今天就这样漏过 `configure-pages` 与 `upload-pages-artifact` 两步），这里直接红。
@@ -188,7 +193,8 @@ CI 的 `check job` 每一步在本机都有同一条命令：`npm run ci` = `npm
 
 ```bash
 npm run check            # 逐文件 node --check：js/ 与 tools/ 全进去（ESM 与 CJS 两种形状），含 server.cjs
-npm test                 # 四道 node 闸（CI 同形，balance 用 SAMPLES=24）
+npm test                 # 五道 node 闸（CI 同形，balance 用 SAMPLES=24）
+npm run session            # 会话闸：两段解码 / 三档帧率对拍 / 真静音 / 阴性对照
 npm run balance          # SAMPLES=60 —— 回填 TIERS 的 band/steps/carve 只能用这个读数
 npm run verify           # 浏览器闸：root 5611 + prefix 5612 两种形态
 npm run verify:local     # 只跑 root 形态（改东西时最快的一遍）

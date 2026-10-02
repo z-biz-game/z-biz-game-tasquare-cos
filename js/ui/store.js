@@ -37,6 +37,14 @@ export const browserStorage = {
 
 export const boardKey = (tierKey, round) => `${BOARD_PREFIX}${tierKey}:${round}`;
 
+/**
+ * seed 的形状校验。这里**不能**写成"只许字母数字"：引擎的 seedOf 给出的是
+ * `tasquare|easy-6x6|0` —— 带竖线的真实局号会被那种正则判成脏数据，续玩于是永远解不开
+ * （本仓实测过：改成宽松形状之前 §2 的"重新装载"拿到 0/0）。
+ * 真正要挡的是空串、超长串、带空白与控制字符的注入型垃圾。
+ */
+const seedOk = (v) => typeof v === 'string' && v.length > 0 && v.length <= 128 && !/[\s\x00-\x20\x7f]/.test(v);
+
 /** 盘面记录（每局一条）的第二段解码：形状不对就整条丢，不抛。 */
 export function decodeBoard(raw, expectLen) {
   if (typeof raw !== 'string' || !raw) return null;
@@ -46,7 +54,7 @@ export function decodeBoard(raw, expectLen) {
   if (typeof s.marks !== 'string') return null;
   if (expectLen != null && s.marks.length !== expectLen) return null;   // 尺寸对不上就是串盘了
   if (!/^[012]+$/.test(s.marks)) return null;
-  if (typeof s.seed !== 'string' || !/^[0-9a-z._-]+$/i.test(s.seed)) return null;
+  if (!seedOk(s.seed)) return null;
   return { seed: s.seed, marks: s.marks };
 }
 
@@ -57,7 +65,7 @@ export function decodeRecord(rec) {
     const { tier, round, seed } = rec;
     if (typeof tier !== 'string' || !tierOf(tier)) return { bad: 'tier' };
     if (!Number.isInteger(round) || round < 0) return { bad: 'round' };
-    if (typeof seed !== 'string' || !/^[0-9a-z._-]+$/i.test(seed)) return { bad: 'seed' };
+    if (!seedOk(seed)) return { bad: 'seed' };
     let clamped = 0;
     let elapsed = rec.elapsed;
     if (elapsed === undefined || elapsed === null) elapsed = 0;
@@ -101,7 +109,7 @@ export function decodePrefs(raw, defaults = { muted: false, hintAuto: false, tie
   if (!p || typeof p !== 'object' || Array.isArray(p)) { out.badFields.push('shape'); return out; }
   for (const k of Object.keys(defaults)) {
     const v = p[k];
-    if (v === undefined) { out.badFields.push(`${k}:missing`); continue; }
+    if (v === undefined) continue;                    // 没存过 = 用默认值，这不是脏数据（新装机器就长这样）
     if (k === 'tier') { if (v === null || tierOf(v)) out[k] = v; else out.badFields.push(k); continue; }
     if (typeof v === typeof defaults[k]) out[k] = v;
     else out.badFields.push(k);

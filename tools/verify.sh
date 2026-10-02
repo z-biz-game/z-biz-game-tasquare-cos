@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 第五道闸（浏览器闸）· たすくえあ Tasquare：真 headless Chrome、真 DOM、真 localStorage、真指针、真刷新
+# 第六道闸（浏览器闸）· たすくえあ Tasquare：真 headless Chrome、真 DOM、真 localStorage、真指针、真刷新
 # —— 三种 URL 形态：
 #
 #   ① root      http://127.0.0.1:5611/                                    (server.cjs：仓库自己就是文档根)

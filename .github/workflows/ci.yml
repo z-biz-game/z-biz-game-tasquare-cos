@@ -34,12 +34,12 @@ jobs:
       # 分层不变量 + 入口接线 + workflow manifest + 工件形状：这四段门**住在 tools/wiring-check.sh 里**，
       # 不在这里的 inline run: 里。理由是兄弟仓踩过的那颗：只存在于 CI 的门本机跑不到，红的时候
       # 现场只能放宽它。现在本机的 `npm run ci` 调同一个脚本，一条门只有一份定义。
-      # 这个 job 里唯一还留着的"CI 独有"东西是下面四道 node 闸与浏览器闸 —— 那些命令本机原样能跑
+      # 这个 job 里唯一还留着的"CI 独有"东西是下面五道 node 闸与浏览器闸 —— 那些命令本机原样能跑
       # （npm test / bash tools/verify.sh），README 与 docs/DESIGN.md 都写了怎么跑。
       - name: Wiring gate (layering, entry wiring, workflow manifest, artifact shape)
         run: bash tools/wiring-check.sh
 
-      # 没有 `node --test test/`：本仓根本没有 test/ 目录，单元测试的形状就是下面四道闸本身。
+      # 没有 `node --test test/`：本仓根本没有 test/ 目录，单元测试的形状就是下面五道闸本身。
       - name: Rule gate (语义 + 条款文字表 + 出处引文)
         run: node tools/rule-test.mjs
 
@@ -49,6 +49,12 @@ jobs:
       - name: Pencil gate (每条结论对全部解成立 · 账本自审)
         run: node tools/pencil-test.mjs
 
+      # 会话闸：存档坏一条只丢那一条、30/60/120Hz 三档定步对拍（含阴性对照必须红）、静音真 suspend。
+      # 这三件事引擎闸看不见（它们不在判定路径上），浏览器闸看得见但量不出比值 —— 而它们坏掉的时候
+      # 页面全是绿的：坏一条丢全档、高刷屏动效快一倍、静音只是把 gain 设 0。
+      - name: Session gate (两段解码 · 三档帧率对拍 · 真静音 · 阴性对照)
+        run: node tools/session-test.mjs
+
       # 难度实测台：TIERS[].band /[].steps /[].carve 是这张表量出来回填进 js/engine/generate.js 的
       # 选择目标，不是标签。24 只是 CI 的抽样量；**回填表要用 `npm run balance`（SAMPLES=60）**，
       # 分位表在 24 上不稳，拿 24 的读数改表会把表定歪。
@@ -57,7 +63,7 @@ jobs:
           SAMPLES: "24"
         run: node tools/balance.mjs
 
-  # 第五道闸：真 headless Chrome、真 DOM、真 localStorage、真指针、真按键、真刷新。
+  # 第六道闸：真 headless Chrome、真 DOM、真 localStorage、真指针、真按键、真刷新。
   # tools/verify.sh 自己跑两种 URL 形态（仓库=文档根的 root 形态 5611，Pages 的 /<repo>/ 前缀形态 5612），
   # 每形态 11 条腿（open domint playfull illegal pointer keyboard narrow resume reject crossengine canary），
   # 本机实测 183 条断言/形态。Chrome 起停按**形态**而不是按腿，profile 各形态一份、只杀自己起的 pid。

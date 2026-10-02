@@ -105,6 +105,7 @@ chk .github/workflows/pages.yml 'test ! -e _site/tools'         '工件边界：
 chk .github/workflows/ci.yml    'node tools/rule-test.mjs'      'CI 跑 rule-test'
 chk .github/workflows/ci.yml    'node tools/counter-test.mjs'   'CI 跑 counter-test'
 chk .github/workflows/ci.yml    'node tools/pencil-test.mjs'    'CI 跑 pencil-test'
+chk .github/workflows/ci.yml    'node tools/session-test.mjs'   'CI 跑 session-test（解码/帧率/静音三条行为判据只住在这里）'
 chk .github/workflows/ci.yml    'node tools/balance.mjs'        'CI 跑 balance'
 chk .github/workflows/ci.yml    'bash tools/wiring-check.sh'    'CI 跑本脚本（否则这几段门是死代码）'
 chk .github/workflows/ci.yml    'bash tools/verify.sh'          'CI 跑浏览器闸'
