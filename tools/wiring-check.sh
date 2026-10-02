@@ -24,9 +24,10 @@ else
 fi
 
 echo '[2 入口接线：页面 → app → game → engine]'
-# 本仓首页**没有 canvas**（`grep -c canvas index.html` 实测 0）：盘是 DOM 格
-# （#board[role=grid] > .cell[data-i]），所以兄弟仓那条 `grep -q '<canvas'` 在这里必然红，
-# 抄过来只是给 CI 加一条与游戏无关的死步骤。下面每条都指向本仓真实的接线。
+# 盘是 DOM 格（#board[role=grid] > .cell[data-i]），不是画布：`grep -c canvas index.html` 实测 1，
+# 那一处是新增的动效层 <canvas id="fx">（CSS 里 pointer-events:none，命中一律来自格子的几何）。
+# 所以这条门验的是"页面够得到引擎"，而不是兄弟仓那种"画布必须存在"——
+# 下面每条都指向本仓真实的接线，少一条就是线上少一次握手而闸全绿。
 while IFS='|' read -r pat file; do
   [ -z "$pat" ] && continue
   if grep -qF -- "$pat" "$file"; then
@@ -53,7 +54,33 @@ manifest.webmanifest|index.html
 icons/apple-touch-icon.png|index.html
 ./pwa.js|js/ui/app.js
 navigator.serviceWorker.register|js/ui/pwa.js
+./motion.js|js/ui/app.js
+./audio.js|js/ui/app.js
+./fx.js|js/ui/app.js
+./store.js|js/ui/app.js
+./store.js|js/ui/game.js
+decodeBoard|js/ui/game.js
+assets/textures/paper-grain.png|css/style.css
+assets/textures/ink-block.png|css/style.css
+viewport-fit=cover|index.html
+env(safe-area-inset-top|css/style.css
+prefers-reduced-motion: reduce|css/style.css
 EOF
+
+echo '[2b HUD id 对账：app.js 里 $() 取的那个 id 必须真的印在 index.html 上]'
+# 这一条的由来：HUD 上九颗按钮全是新加的，而 app.js 用 $('pause')、$('mute') 这类字面量取它们。
+# id 打错一位，浏览器闸要跑到那一腿才报"元素不存在"，而 wiring 这步 1 秒就能定住它。
+node -e '
+const fs = require("fs");
+const html = fs.readFileSync("index.html", "utf8");
+const app = fs.readFileSync("js/ui/app.js", "utf8");
+const ids = new Set([...html.matchAll(/id="([^"]+)"/g)].map((m) => m[1]));
+const used = [...app.matchAll(/\$\(\x27([a-zA-Z0-9_-]+)\x27\)/g)].map((m) => m[1]);
+let bad = 0;
+for (const u of new Set(used)) if (!ids.has(u)) { console.log(`  MISS app.js 取 #${u}，index.html 里没有这个 id`); bad = 1; }
+console.log(bad ? "  FAIL" : `  ok   app.js 里 ${new Set(used).size} 个 id 全部在 index.html 上（页面共 ${ids.size} 个 id）`);
+process.exit(bad);
+' || fail=1
 
 echo '[3 workflow manifest：注释里承诺的步骤必须真的存在]'
 # 这一段的由来是今天真犯过的错：pages.yml 的注释写着版本三元组

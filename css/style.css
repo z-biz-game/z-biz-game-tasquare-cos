@@ -14,26 +14,46 @@
   --accent: #1d63c9;
   --bad: #b4232a;
   --won: #1c7a44;
-  --cell: clamp(30px, 9vw, 52px);
+  /* 44px 是触屏命中区的下限（Apple HIG 与 WCAG 2.5.5 同一个数）：窄屏 8×8 实测
+     8×44.85 + main 左右内边距 28 = 387 ≤ 390，抬下限不会把盘顶出横向滚动条。 */
+  --cell: clamp(44px, 11.5vw, 56px);
   --radius: 10px;
+  --paper-img: url('../assets/textures/paper-grain.png');
+  --ink-img: url('../assets/textures/ink-block.png');
+  /* env() 只有在 viewport-fit=cover 之下才拿得到非 0 值（index.html 的 meta 里带着）。 */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
 }
 
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
-  background: var(--paper);
+  background: var(--paper) var(--paper-img);
   color: var(--ink);
   font: 15px/1.6 ui-sans-serif, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  padding: calc(var(--safe-t) + 0px) var(--safe-r) calc(var(--safe-b) + 0px) var(--safe-l);
 }
 
-.bar { padding: 20px 20px 0; }
+.bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
+  padding: calc(var(--safe-t) + 20px) 20px 0;
+}
+.bar-text { display: grid; gap: 2px; }
+.title-face {
+  width: 64px; height: 64px; border-radius: 14px;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--ink) 12%, transparent);
+  animation: title-in 420ms ease-out both;
+}
+@keyframes title-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 h1 { margin: 0; font-size: 22px; letter-spacing: .04em; }
 h1 small { color: var(--ink-quiet); font-weight: 400; font-size: 14px; letter-spacing: .12em; }
 .tag { margin: 6px 0 0; max-width: 62ch; color: var(--ink-quiet); }
 h2 { font-size: 17px; margin: 0 0 10px; }
 
-main { display: grid; gap: 22px; padding: 20px; max-width: 1080px; }
+main { display: grid; gap: 22px; padding: 20px calc(var(--safe-r) + 20px) calc(var(--safe-b) + 20px) calc(var(--safe-l) + 20px); max-width: 1080px; }
 
 /* ---- 档位导航：文案由 TIERS 现读，这里只管排 */
 .tiers { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
@@ -42,7 +62,7 @@ main { display: grid; gap: 22px; padding: 20px; max-width: 1080px; }
   font: inherit; color: var(--ink); cursor: pointer;
   background: var(--panel);
   border: 1px solid color-mix(in srgb, var(--ink-quiet) 40%, transparent);
-  border-radius: var(--radius); padding: 8px 12px;
+  border-radius: var(--radius); padding: 8px 12px; min-height: 44px;
 }
 .tier b { font-size: 15px; }
 .tier span { font-size: 12px; color: var(--ink-quiet); }
@@ -50,7 +70,10 @@ main { display: grid; gap: 22px; padding: 20px; max-width: 1080px; }
 .tier.on b { color: var(--accent); }
 
 /* ---- 盘面 */
-.play { display: grid; gap: 20px; grid-template-columns: minmax(0, max-content) minmax(260px, 1fr); align-items: start; }
+.play { position: relative; display: grid; gap: 20px; grid-template-columns: minmax(0, max-content) minmax(260px, 1fr); align-items: start; }
+
+/* 动效层：盖在盘上、不吃指针（命中一律由格子的几何给，藏起来的盘因此不可能经这一层吃到点击）。 */
+.fx { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
 
 .board {
   display: grid;
@@ -61,17 +84,23 @@ main { display: grid; gap: 22px; padding: 20px; max-width: 1080px; }
   border-top: 3px solid var(--line);
   border-bottom: 3px solid var(--line);
   background: var(--panel);
+  touch-action: none;             /* 拖动连涂要拿到完整的 pointer 序列，别让浏览器把它读成页面滚动 */
 }
 .cell {
   position: relative;
   width: var(--cell); height: var(--cell);
+  min-width: 44px; min-height: 44px;      /* 命中区下限：与 --cell 的下限同一个数，两处不一致就是假口径 */
   border-left: 1px solid var(--line);
   border-right: 1px solid var(--line);
   display: grid; place-items: center;
   background: var(--panel);
+  touch-action: none;
 }
 .cell.free { cursor: pointer; }
-.cell.free:hover { background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
+@media (hover: hover) {
+  .cell.free:hover { background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
+}
+.cell.free:active { transform: scale(.97); }
 .cell:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 /* 圈内数字：一个真正的圆，直径压到格子的六成，数字居中 */
@@ -85,7 +114,9 @@ main { display: grid; gap: 22px; padding: 20px; max-width: 1080px; }
 /* 问号按源文本就不带圈，且比数字写意一点 */
 .cell.clue.q span { border: none; font-size: calc(var(--cell) * .52); font-weight: 600; }
 
-.cell.blk { background: var(--line); }
+/* 黑格用仓内现画的墨面（assets/gen/make_art.py），不是纯 CSS 色：
+   图标、社交卡、盘上黑区因此是同一张母图的三个尺度。 */
+.cell.blk { background: var(--line) var(--ink-img) center / cover no-repeat; }
 .cell.wht::after {
   content: ""; width: 22%; height: 22%; border-radius: 50%; background: var(--line);
 }
@@ -95,15 +126,30 @@ main { display: grid; gap: 22px; padding: 20px; max-width: 1080px; }
 .status { margin: 0; }
 .controls { display: flex; flex-wrap: wrap; gap: 8px; }
 
+/* 时钟与状态：读数由 motion.js 派生（app.js 里 paintState），CSS 只负责让暂停一眼可辨。 */
+.clockline { margin: 0; display: flex; align-items: baseline; gap: 10px; }
+.clock { font: 600 20px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .04em; }
+.state { font-size: 13px; color: var(--ink-quiet); font-weight: 600; }
+.state[data-paused='1'] { color: var(--accent); }
+
 button {
   font: inherit; color: var(--ink); cursor: pointer;
   background: var(--panel);
   border: 1px solid color-mix(in srgb, var(--ink-quiet) 45%, transparent);
   border-radius: calc(var(--radius) - 4px);
   padding: 7px 12px;
+  min-height: 44px;                /* 与 .cell 同一个下限：按钮 34px、格子 44px 的 HUD 在手指上是两种口径 */
 }
 button:hover { border-color: var(--accent); }
 button.ghost { color: var(--ink-quiet); }
+
+.note { margin: 0; font-size: 12px; color: var(--ink-quiet); min-height: 1.5em; }
+.tutorial { background: var(--panel); border: 1px solid color-mix(in srgb, var(--ink-quiet) 30%, transparent); border-radius: var(--radius); padding: 12px 14px; }
+.howto-list { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 13px; }
+
+/* 暂停态：盘面整体退色 + 不吃指针。停的是时钟与动效，不是这一局的事实（存档与读数照旧）。 */
+body.paused .board { opacity: .38; pointer-events: none; }
+body.paused .cell.free:active { transform: none; }
 
 .hint { margin: 0; color: var(--accent); min-height: 1.6em; }
 .result { margin: 0; font-weight: 600; }
@@ -133,5 +179,23 @@ summary { cursor: pointer; color: var(--ink-quiet); }
 @media (max-width: 720px) {
   .play { grid-template-columns: minmax(0, 1fr); }
   .board { order: -1; justify-content: center; }
-  main { padding: 14px; gap: 16px; }
+  /* 这里的 14px 是"设计内边距"，safe-area 要**加**在它外面：写成 padding:14px 会把
+     :root 那四条 env() 覆盖成 0，刘海机上 HUD 就直接压进圆角里。 */
+  main {
+    padding: 14px calc(var(--safe-r) + 14px) calc(var(--safe-b) + 14px) calc(var(--safe-l) + 14px);
+    gap: 16px;
+  }
 }
+
+/* 减少动效：一条真分支，不是装饰。标题的入场动画与按压时的缩放全部取消 ——
+   按下去没有位移反馈这件事本身在振动反馈关掉的机器上就是"没响应"，所以边框仍给变化。
+   同一组声明挂在 body.reduced-motion 上，是为了运行时改系统设置（不刷新页面）也生效：
+   CSS 媒体查询会自己重算，matchMedia 的 change 监听则负责动效层（motion.js）那一半。 */
+@media (prefers-reduced-motion: reduce) {
+  .title-face { animation: none; }
+  .cell.free:active { transform: none; border-color: var(--accent); }
+  body.paused .cell.free:active { transform: none; }
+  * { scroll-behavior: auto; }
+}
+body.reduced-motion .title-face { animation: none; }
+body.reduced-motion .cell.free:active { transform: none; border-color: var(--accent); }

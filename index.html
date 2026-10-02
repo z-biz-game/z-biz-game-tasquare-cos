@@ -25,23 +25,41 @@
 </head>
 <body>
 <header class="bar">
-  <h1>たすくえあ <small>Tasquare</small></h1>
-  <p class="tag">黑格只能是正方形区，区与区不许共边；圈里的数字是邻接黑区的格数之和。</p>
+  <img id="title-face" class="title-face" src="assets/textures/title-face.png" width="240" height="240"
+    alt="たすくえあ母题：两个互不共边的墨色正方形区与一枚圈内数字">
+  <div class="bar-text">
+    <h1>たすくえあ <small>Tasquare</small></h1>
+    <p class="tag">黑格只能是正方形区，区与区不许共边；圈里的数字是邻接黑区的格数之和。</p>
+  </div>
   <nav id="tiers" class="tiers" aria-label="档位"></nav>
 </header>
 
 <main>
   <section id="play" class="play">
     <div id="board" class="board" role="grid" aria-label="盘面"></div>
+    <!-- 只画动效，不吃指针（CSS 里 pointer-events:none）：命中一律由格子的几何给。 -->
+    <canvas id="fx" class="fx" aria-hidden="true"></canvas>
     <aside class="side" aria-label="这局的状态与操作">
       <p id="seedline" class="seed"></p>
       <p id="status" class="status" role="status" aria-live="polite"></p>
+      <p class="clockline"><span id="clock" class="clock" aria-label="本局用时">00:00</span>
+        <b id="state" class="state" data-paused="0">思考中</b></p>
       <div class="controls">
-        <button type="button" id="next">换一局</button>
+        <button type="button" id="pause" aria-pressed="false">暂停</button>
+        <button type="button" id="restart">重开这一局</button>
+        <button type="button" id="next">再来一局</button>
         <button type="button" id="hint">提示一步</button>
         <button type="button" id="check">检查</button>
+        <button type="button" id="mute" aria-pressed="false">有声音</button>
+        <button type="button" id="fullscreen">全屏</button>
+        <button type="button" id="help" aria-expanded="false" aria-controls="tutorial">玩法说明</button>
         <button type="button" id="reset" class="ghost">清空我的涂黑</button>
       </div>
+      <p id="motion-note" class="note"></p>
+      <section id="tutorial" class="tutorial" hidden>
+        <h2>怎么玩（操作，不含任何判定）</h2>
+        <ul id="howto-list" class="howto-list"></ul>
+      </section>
       <p id="hintline" class="hint"></p>
       <p id="result" class="result"></p>
       <ul id="violations" class="violations"></ul>

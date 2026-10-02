@@ -17,6 +17,7 @@ import { BLK, CLAUSE_TEXT, DEFAULTS, FREE, QMARK, UNK, WHT, faceRows, faceTokens
 import { CLAUSES, RULES, pencilSolve } from '../engine/pencil.js';
 import { countSolutions } from '../engine/counter.js';
 import { seedOf } from '../engine/rng.js';
+import { boardKey, decodeBoard } from './store.js';
 
 export { BLK, UNK, WHT };
 
@@ -27,8 +28,6 @@ export const MARK_TEXT = { [UNK]: '未知', [BLK]: '黑', [WHT]: '白' };
 export const tierList = () => TIERS.map((t) => ({
   key: t.key, label: t.label, size: `${t.h}×${t.w}`, band: t.band, steps: t.steps, target: t.target,
 }));
-
-const key = (tierKey, round) => `tasquare:v1:${tierKey}:${round}`;
 
 /**
  * @param tierKey 档位键（必须在 TIERS 里，否则 tierOf 给 null ⇒ 这里抛）
@@ -57,17 +56,14 @@ export function makeGame(tierKey, round, storage = null) {
   game.marks = marks;
   game.answer = result.blacks;                       // 裁判交回的那张（页面永远不读它做判定）
 
-  // ---- 续玩：只认与本题面同尺寸的存档；对不上就丢弃（宁可重开也不串盘）
-  const raw = storage && storage.getItem(key(tierKey, round));
-  if (raw) {
-    try {
-      const s = JSON.parse(raw);
-      if (typeof s.marks === 'string' && s.marks.length === n && /^[012]+$/.test(s.marks)) {
-        for (let i = 0; i < n; i++) marks[i] = s.marks.charCodeAt(i) - 48;
-      }
-    } catch { /* 坏档就重开 */ }
+  // ---- 续玩：解码只有一条路径（store.js 的 decodeBoard），这里不再自己 parse 一遍。
+  // 只认与本题面同尺寸的存档；坏档/串盘/长度不符都由那一侧返回 null ⇒ 重开，绝不抛。
+  const saved = decodeBoard(storage && storage.getItem(boardKey(tierKey, round)), n);
+  if (saved && saved.seed === seed) {
+    for (let i = 0; i < n; i++) marks[i] = saved.marks.charCodeAt(i) - 48;
   }
-  game.save = () => storage && storage.setItem(key(tierKey, round), JSON.stringify({ seed, marks: marks.join('') }));
+  game.saved = saved && saved.seed === seed ? saved : null;
+  game.save = () => storage && storage.setItem(boardKey(tierKey, round), JSON.stringify({ seed, marks: marks.join('') }));
   game.clear = () => { marks.fill(UNK); game.save(); };
 
   const playable = (i) => i >= 0 && i < n && face.c[i] === FREE;
