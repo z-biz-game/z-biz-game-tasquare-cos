@@ -6,12 +6,15 @@
 
 import { BLK, MARK_TEXT, UNK, WHT, cellsOf, makeGame, tierList } from './game.js';
 import { CLAUSE_TEXT, DEFAULTS, SOURCE_QUOTE, SOURCE_URL } from '../engine/rules.js';
+import { registerServiceWorker } from './pwa.js';
 
 const $ = (id) => document.getElementById(id);
 const tiers = tierList();
 const store = typeof localStorage !== 'undefined' ? localStorage : null;
 
 let game = null;
+let pwa = { supported: typeof navigator !== 'undefined' && 'serviceWorker' in navigator,
+            registered: false, scope: null, error: null };
 
 /** 局号是递增整数，**不许**由日期派生（那等于每天换一批盘，"换一局"就对不上任何公式）。 */
 function parseHash(h) {
@@ -178,4 +181,11 @@ window.tasquare = {
   mark: (i, v) => { game.mark(i, v); render(); },
   cycle: (i) => { game.cycle(i); render(); },
   load,
+  pwa: () => ({ ...pwa }),
 };
+
+// 装机通道：load 之后再注册（早于 load 会跟首屏资源抢同一条队列）。
+// 注册结果只改 pwa 这一个状态位 —— 装不上机不影响玩，这条腿绝不能反过来拦页面。
+window.addEventListener('load', () => {
+  registerServiceWorker().then((s) => { pwa = s; });
+});

@@ -2,9 +2,25 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- viewport-fit=cover 不是装饰：iOS 上少了它，CSS 里的 env(safe-area-inset-*) 全部恒为 0。 -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f6f4ee">
+<meta name="color-scheme" content="light">
 <title>たすくえあ Tasquare · 找正方形</title>
 <meta name="description" content="Tasquare（たすくえあ）：黑格拼成互不共边的实心正方形区，圈内数字＝邻接黑区格数之和。每一局都由穷举裁判证明解唯一、由零猜测铅笔证明推得完。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="たすくえあ Tasquare · 找正方形">
+<meta property="og:description" content="黑格只能是正方形区，区与区不许共边；圈里的数字是邻接黑区的格数之和。每局都由裁判证明唯一解、由零猜测铅笔证明推得完。">
+<meta property="og:image" content="https://z-biz-game.github.io/z-biz-game-tasquare-cos/icons/og-image.png">
+<meta property="og:url" content="https://z-biz-game.github.io/z-biz-game-tasquare-cos/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://z-biz-game.github.io/z-biz-game-tasquare-cos/icons/og-image.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tasquare">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>

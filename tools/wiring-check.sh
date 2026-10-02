@@ -49,6 +49,10 @@ TIERS|js/ui/game.js
 pencilSolve|js/ui/game.js
 countSolutions|js/ui/game.js
 verify|js/ui/game.js
+manifest.webmanifest|index.html
+icons/apple-touch-icon.png|index.html
+./pwa.js|js/ui/app.js
+navigator.serviceWorker.register|js/ui/pwa.js
 EOF
 
 echo '[3 workflow manifest：注释里承诺的步骤必须真的存在]'
@@ -80,22 +84,26 @@ chk .github/workflows/ci.yml    'bash tools/verify.sh'          'CI 跑浏览器
 [ "$m" -eq 0 ] || fail=1
 
 echo '[4 工件形状：真的把 _site 拼一遍再验边界]'
-# 站点内容只有 index.html + css/ + js/。tools/、server.cjs、package.json 一旦上线，
-# "线上跑的正是这个仓"这句话就开始包含门禁代码，而浏览器闸对部署形态只看得到页面 ——
-# 泄漏不会被任何一条腿发现。_site 在 .gitignore 里，这里用一次性目录，不留在仓里。
+# 站点内容是页面 + 它自己够得到的每一件事：manifest、sw、位图。少拷一个就是线上 404 而闸全绿
+# （SW 那次尤其阴：注册失败只 reject 一个 promise，页面照常跑得欢）。
+# tools/、server.cjs、package.json 一旦上线，"线上跑的正是这个仓"这句话就开始包含门禁代码，
+# 而浏览器闸对部署形态只看得到页面 —— 泄漏不会被任何一条腿发现。
+# _site 在 .gitignore 里，这里用一次性目录，不留在仓里。
 SITE=$(mktemp -d)
-cp index.html "$SITE/"
-cp -r css js "$SITE/"
+cp index.html manifest.webmanifest sw.js "$SITE/"
+cp -r css js icons assets "$SITE/"
 bnd=0
 for bad in tools server.cjs package.json docs; do
   if [ -e "$SITE/$bad" ]; then echo "  MISS 工件里有 $bad"; bnd=1; fi
 done
-for need in index.html css/style.css js/ui/app.js js/engine/generate.js; do
+for need in index.html css/style.css js/ui/app.js js/engine/generate.js \
+            manifest.webmanifest sw.js icons/icon-192.png icons/icon-512.png \
+            icons/apple-touch-icon.png assets/textures/paper-grain.png assets/sprites/spark.png; do
   if [ ! -f "$SITE/$need" ]; then echo "  MISS 工件里少了 $need"; bnd=1; fi
 done
 rm -rf "$SITE"
 if [ "$bnd" -eq 0 ]; then
-  echo '  ok   工件只有页面够得到的那份：index.html + css/ + js/（门禁代码在门外）'
+  echo '  ok   工件 = 页面够得到的那份：index.html + manifest + sw + css/ + js/ + icons/ + assets/（门禁代码在门外）'
 else
   fail=1
 fi
