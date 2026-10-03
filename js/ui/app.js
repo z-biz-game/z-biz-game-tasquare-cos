@@ -65,7 +65,12 @@ function renderBoard() {
   }).join('');
   for (const el of board.querySelectorAll('.free')) {
     const i = Number(el.dataset.i);
-    el.addEventListener('click', () => { game.cycle(i); render(); });
+    // 用 pointerdown 而不是 click：click 要等浏览器把这一次按压"确认"成点击才发，
+    // 触摸上晚 100~300ms。玩家连着涂一盘时那点延迟是攒起来的手感。
+    // pointer 事件把鼠标/触摸/笔统一成一条路，省掉两套 handler——这是第二个理由。
+    // 前提是 css 里给 .cell.free 加了 touch-action: manipulation：否则手指在格上
+    // 一旦被浏览器判成滚动，pointerdown 根本不会落在这一格上（那正是要解决的问题）。
+    el.addEventListener('pointerdown', (e) => { e.preventDefault(); game.cycle(i); render(); });
     // 右键只做两件事：黑 ↔ 未知（跳过"白"，注白交给左键的第二态）
     el.addEventListener('contextmenu', (e) => { e.preventDefault(); game.mark(i, game.marks[i] === BLK ? UNK : BLK); render(); });
   }

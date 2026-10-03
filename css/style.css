@@ -70,7 +70,20 @@ main { display: grid; gap: 22px; padding: 20px; max-width: 1080px; }
   display: grid; place-items: center;
   background: var(--panel);
 }
-.cell.free { cursor: pointer; }
+.cell.free {
+  cursor: pointer;
+  /* 触摸：这一格是「按下去就落子」的地方，不该被浏览器当成滚动区或双击缩放的目标。
+     没有 touch-action 时手指落在格上，浏览器要先判断这是滚动还是点击——手指稍有
+     偏移就变成滚页面，这一下就没落上；连点两下还会触发页面缩放。
+     manipulation 明确告诉浏览器「这里只处理平移与捏合，别管双击缩放」，
+     同时去掉那约 300ms 的点击等待。 */
+  touch-action: manipulation;
+  /* 长按是本仓「右键涂黑」在触摸上的唯一入口：不禁掉选择与长按菜单的话，
+     手指停在格上会先弹出系统的文本选择/调用菜单，contextmenu 未必到得了。 */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
 .cell.free:hover { background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
 .cell:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
