@@ -70,6 +70,26 @@ export function makeGame(tierKey, round, storage = null) {
   game.save = () => storage && storage.setItem(key(tierKey, round), JSON.stringify({ seed, marks: marks.join('') }));
   game.clear = () => { marks.fill(UNK); game.save(); };
 
+  /**
+   * 重开**本题**：玩家发现这一局走错了，原地推倒重来 —— 题面、盘号、档位全不变。
+   *
+   * 本仓的"重开"就是一行 marks.fill(UNK)，而这**不是**偷懒，是穷举过这一局的
+   * 全部可变状态之后剩下的真实结论。逐个点名：
+   *   marks        玩家唯一能改的东西（mark / cycle 写的就是它）—— 清掉。
+   *   hint()       **纯函数**：在纯题面上跑铅笔求解，不吃玩家前提，也不往自身上记账。
+   *   certify()    **纯函数**：唯一性与逐格对照都是现算，不落任何状态。
+   *   verdict()    **纯函数**：读 marks 现算。
+   *   face / answer / seed / tier / result / reject   题面级，构造后不再变，重开必须留。
+   * 没有撤销栈（本格循环 未知→黑→白→未知，不提供回退）、没有步数、没有提示计数、
+   * 没有计时器、没有胜负标记。
+   *
+   * 所以本仓跟组合里那些 class 形态的仓不一样：那边 UI 层挂着撤销栈/步数/提示游标，
+   * 只调引擎重置会把半局的痕迹带进新局（实测过 steps 6→6、cursor 40→40）；
+   * 这边没有那一层痕迹可带。**要是哪天给本仓加进撤销栈或提示计数，
+   * 这个函数就必须同时点名它们，不能继续拿一行 fill 充数。**
+   */
+  game.restart = () => { game.clear(); };
+
   const playable = (i) => i >= 0 && i < n && face.c[i] === FREE;
   game.mark = (i, v) => { if (!playable(i) || !CYCLE.includes(v)) return false; marks[i] = v; game.save(); return true; };
   game.cycle = (i) => { if (!playable(i)) return false; marks[i] = CYCLE[(marks[i] + 1) % CYCLE.length]; game.save(); return true; };

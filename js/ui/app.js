@@ -128,7 +128,11 @@ $('next').addEventListener('click', () => load(game.tierKey, game.round + 1));
 // 拒盘那块面板必须自己也能走人：#play 在这条分支里是 hidden 的，#next 根本点不到，
 // 少这一行的话"这一局号没能出货"就是一张死路告示，而页面上唯一能换局的按钮藏在看不见的那块里。
 $('reject-next').addEventListener('click', () => load(game.tierKey, game.round + 1));
-$('reset').addEventListener('click', () => { game.clear(); render(); });
+// 走 restart() 而不是直接调 game.clear()：这两个在本仓是同一件事（理由见 game.js 里
+// game.restart 的注释——marks 是这一局唯一能改的东西），但入口的名字要跟着玩家的
+// 意图走：玩家要的是"这题我走错了，推倒重来"，不是"把我的黑块擦掉"。注释里那条
+// "哪天加了撤销栈就必须同时点名"也是靠这个入口才守得住 —— 走 clear 就绕过去了。
+$('reset').addEventListener('click', () => { game.restart(); render(); });
 $('check').addEventListener('click', renderStatus);
 $('hint').addEventListener('click', () => {
   if (!game.ok) return;
@@ -151,6 +155,9 @@ $('board').addEventListener('keydown', (e) => {
     return;
   }
   if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); game.cycle(Number(el.dataset.i)); render(); }
+  // R 重开本题。本仓原先没有字母键（方向键走格、Enter/Space 落子），所以 R 是空的。
+  // 局中就能按：玩家涂到一半发现这思路走不通，当场 R 一下原地重来。
+  if (e.key === 'r' || e.key === 'R') { e.preventDefault(); game.restart(); render(); }
 });
 
 // 换局号的来路有三种：按钮、地址栏手改、别的标签页 —— 后两种都靠 hashchange
@@ -177,6 +184,9 @@ window.tasquare = {
   } : null),
   mark: (i, v) => { game.mark(i, v); render(); },
   cycle: (i) => { game.cycle(i); render(); },
+  // 供探针驱动：重开本题。挂在窗口上是为了让闸能真的调一次、读 BEFORE/AFTER，
+  // 而不必去合成点击（格子的点击要落到 DOM 上，离屏闸点不稳）。
+  restart: () => { game.restart(); render(); },
   load,
 };
 
