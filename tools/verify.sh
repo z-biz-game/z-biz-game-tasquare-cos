@@ -112,7 +112,7 @@ if [ "$CUSTOM" = 0 ]; then
   echo "  两种形态各用一个 HTTP 端口：origin 不同 ⇒ localStorage 各一套；Chrome/profile 按形态各一份，该形态的十一条腿共用"
 else
   CDP=$(first_free "$CDP_WANT") || { echo "no free devtools port near $CDP_WANT" >&2; exit 2; }
-  echo "DEPLOYED_URL=$DEPLOYED_URL → 部署件形态，本脚本不起任何服务（CDP $CDP）"
+  echo "DEPLOYED_URL=$DEPLOYED_URL → 部署件形态，本脚本不起任何服务（CDP ${CDP}）"
 fi
 echo "logs: $LOGDIR"
 [ "$SABOTAGE" = 1 ] && echo "SABOTAGE=1 → 期望被故意改错（open 的 okWant=false · crossengine 的 ${SABOTAGE_SEED:-irr-8x8/2} 题面错位 · resume 的假刷新）：这一跑**必须**有 FAIL 且 rc≠0，绿了就是闸没咬住"
@@ -173,7 +173,7 @@ preflight() {
   local base=$1 rel want got f served
   served=$(curl -fsS -m 8 "$base" 2>/dev/null) || { echo "  首页取不到：$base" >&2; return 1; }
   case "$served" in *js/ui/app.js*) ;; *) echo "  $base 上发的不是本仓的首页（正文里找不到 js/ui/app.js）" >&2; return 1 ;; esac
-  case "$served" in *"$FEATURE"*) ;; *) echo "  $base 在发别的应用：首页正文里找不到「$FEATURE」" >&2; return 1 ;; esac
+  case "$served" in *"$FEATURE"*) ;; *) echo "  $base 在发别的应用：首页正文里找不到「${FEATURE}」" >&2; return 1 ;; esac
   for rel in $PREFLIGHT_RELS; do
     want=$(wc -c < "$HERE/$rel" | tr -d ' ')
     [ -n "$want" ] || { echo "  $rel 在磁盘上读不到，闸没有可对的基准" >&2; return 1; }
@@ -181,11 +181,11 @@ preflight() {
     got=$(curl -sS -m 8 -o "$f" -w '%{http_code} %{size_download}' "$base$rel" 2>/dev/null) || {
       echo "  $rel 取不回来：$base$rel" >&2; return 1; }
     case "$got" in "200 $want") ;; *)
-      echo "  $rel 不对味：$base$rel 回 $got，磁盘上的这份是 200 $want 字节" >&2
+      echo "  $rel 不对味：$base$rel 回 ${got}，磁盘上的这份是 200 $want 字节" >&2
       echo "  前两行到手内容：$(head -c 160 "$f" | tr '\n' ' ')" >&2
       return 1 ;; esac
   done
-  echo "  预检：首页含「$FEATURE」与 js/ui/app.js · $(echo $PREFLIGHT_RELS | wc -w | tr -d ' ') 条真实模块路径按字节对上磁盘"
+  echo "  预检：首页含「${FEATURE}」与 js/ui/app.js · $(echo $PREFLIGHT_RELS | wc -w | tr -d ' ') 条真实模块路径按字节对上磁盘"
   return 0
 }
 
@@ -226,7 +226,7 @@ run_leg() {
     open)
       s=open
       nav="${base}#${MAIN_TIER}/${MAIN_ROUND}"
-      expect=$(node tools/playtest.cjs witness "$MAIN_TIER" "$MAIN_ROUND") || { echo "  node 证人起不来（$MAIN_TIER/$MAIN_ROUND）" >&2; RUNBAD=1; return; }
+      expect=$(node tools/playtest.cjs witness "$MAIN_TIER" "$MAIN_ROUND") || { echo "  node 证人起不来（$MAIN_TIER/${MAIN_ROUND}）" >&2; RUNBAD=1; return; }
       # 阴性自证：把期望的 ok 改成 false —— 页面明明出了货，这条必须红。一条永远同意的 open 等于没看页面。
       [ "$SABOTAGE" = 1 ] && expect=$(printf '%s' "$expect" | python3 -c 'import sys,json;d=json.load(sys.stdin);d["okWant"]=False;print(json.dumps(d))')
       ;;
@@ -263,7 +263,7 @@ run_leg() {
       vp=$NARROW_VIEWPORT
       mob=1
       nav="${base}#${NARROW_TIER}/${NARROW_ROUND}"
-      expect=$(node tools/playtest.cjs witness "$NARROW_TIER" "$NARROW_ROUND") || { echo "  node 证人起不来（$NARROW_TIER/$NARROW_ROUND）" >&2; RUNBAD=1; return; }
+      expect=$(node tools/playtest.cjs witness "$NARROW_TIER" "$NARROW_ROUND") || { echo "  node 证人起不来（$NARROW_TIER/${NARROW_ROUND}）" >&2; RUNBAD=1; return; }
       expect=$(printf '%s' "$expect" | python3 -c '
 import sys, json
 d = json.load(sys.stdin)
@@ -271,14 +271,14 @@ p = sys.argv[1].split("x")
 d["vwWant"] = int(p[0]); d["vhWant"] = int(p[1])
 d["dprWant"] = int(p[2]) if len(p) > 2 else 1
 d["mobileWant"] = True
-print(json.dumps(d))' "$vp") || { echo "  窄屏腿的视口三元组拼不进 expect（$vp）" >&2; RUNBAD=1; return; }
+print(json.dumps(d))' "$vp") || { echo "  窄屏腿的视口三元组拼不进 expect（${vp}）" >&2; RUNBAD=1; return; }
       ;;
     resume)
       # 续局腿：导航 URL **不带 fragment** —— 盘只能来自默认或存档，刷新后落在 RESUME_TIER/ROUND
       # 才是"续的是档"的正面证据（默认是 easy-6x6/0，与这里要的 mid-8x8/7 不同档不同局号）。
       mode=interact
       nav="$base"
-      expect=$(node tools/playtest.cjs witness "$RESUME_TIER" "$RESUME_ROUND") || { echo "  node 证人起不来（$RESUME_TIER/$RESUME_ROUND）" >&2; RUNBAD=1; return; }
+      expect=$(node tools/playtest.cjs witness "$RESUME_TIER" "$RESUME_ROUND") || { echo "  node 证人起不来（$RESUME_TIER/${RESUME_ROUND}）" >&2; RUNBAD=1; return; }
       # 阴性自证：把"新文档"这个证人**假装成同文档片段跳转**（哨兵/timeOrigin/href 三条当场红）
       [ "$SABOTAGE" = 1 ] && expect=$(printf '%s' "$expect" | python3 -c 'import sys,json;d=json.load(sys.stdin);d["fakeReload"]=1;print(json.dumps(d))')
       ;;
@@ -299,7 +299,7 @@ print(json.dumps(d))' "$vp") || { echo "  窄屏腿的视口三元组拼不进 e
       # 用 msCap 造负样本会让盘形跟着机器速度变，那是本组织的红线，一条都不许碰。
       nav="${base}#${MAIN_TIER}/${MAIN_ROUND}"
       expect=$(node tools/playtest.cjs canary "$CANARY_TIER" "$CANARY_ROUND") || {
-        echo "  canary 的 node 证人交不出负样本（$CANARY_TIER/$CANARY_ROUND）" >&2; RUNBAD=1; return; }
+        echo "  canary 的 node 证人交不出负样本（$CANARY_TIER/${CANARY_ROUND}）" >&2; RUNBAD=1; return; }
       ;;
     *) echo "  不认识这条腿：$leg" >&2; RUNBAD=1; return ;;
   esac
@@ -309,7 +309,7 @@ print(json.dumps(d))' "$vp") || { echo "  窄屏腿的视口三元组拼不进 e
   clog="$LOGDIR/$shape-$s.console.log"; tally="$LOGDIR/$shape-$s.tally"; extra="$LOGDIR/$shape-$s.extra.json"
   rm -f "$tally" "$extra" "$art" "$raw" "$last"
   : >"$art"
-  echo "=== [$shape] $leg（场景 $s · mode=${mode} · viewport ${vp} · mobile ${mob} · nav ${nav}）" | tee -a "$art"
+  echo "=== [$shape] ${leg}（场景 $s · mode=${mode} · viewport ${vp} · mobile ${mob} · nav ${nav}）" | tee -a "$art"
   VIEWPORT=$vp EMULATE_MOBILE=$mob NAV_URL=$nav SABOTAGE=$SABOTAGE \
     node tools/playtest.cjs "$mode" "$s" "$expect" >"$raw" 2>"$clog"
   pt_rc=$?
@@ -332,7 +332,7 @@ print(json.dumps(d))' "$vp") || { echo "  窄屏腿的视口三元组拼不进 e
     echo "  --- console（tail 8）---"
     sed 's/^/  /' "$clog" | tail -8 | tee -a "$art"
   fi
-  [ "$pt_rc" = 0 ] || echo "  playtest 自身退出码 $pt_rc（非 0 ⇒ 这一腿没跑成，见 $art）" | tee -a "$art"
+  [ "$pt_rc" = 0 ] || echo "  playtest 自身退出码 ${pt_rc}（非 0 ⇒ 这一腿没跑成，见 ${art}）" | tee -a "$art"
   return 0
 }
 
@@ -507,6 +507,6 @@ fi
 # 只报这一跑真的跑过的形态：SHAPES=root / DEPLOYED_URL 那种单形态跑，旧文案照样打印"两种 URL 形态"。
 # 阴性自证也走同一条出口：故意改错期望时这一跑的 **rc 必须非 0**。
 [ "$SABOTAGE" = 1 ] && echo "=== 阴性自证这一跑：期望被故意改错，上面必须有 FAIL 且**退出码非 0** ==="
-[ "$FINAL" = 0 ] && echo "=== ALL GREEN（这一跑实际覆盖的 URL 形态：${SHAPE_RAN# }）===" || echo "=== FAILURES ABOVE（裁决读自 $GATE）==="
+[ "$FINAL" = 0 ] && echo "=== ALL GREEN（这一跑实际覆盖的 URL 形态：${SHAPE_RAN# }）===" || echo "=== FAILURES ABOVE（裁决读自 ${GATE}）==="
 echo "工件：$GATE"
 exit $FINAL
