@@ -500,10 +500,18 @@ print('GATE_RC=%d' % rc_out)
 sys.exit(rc_out)
 VERDICT
 FINAL=$?
-echo "GATE_RC=$FINAL" >>"$GATE"
 if [ "$FINAL" != "$FAILED" ]; then
   echo "  注意：包装脚本自己记的 FAILED=$FAILED 与工件读回的 GATE_RC=$FINAL 不一致 —— 以**工件**那份为准（裁决只认写进文件的那一位）。"
 fi
+# 部署集闸：ci.yml 早就在跑这两步，本地整闸以前一次都不跑。缺这一步就是「本地全绿、线上 404 自己的
+# manifest / sw.js / 图标」这一整类坏法。它不碰 Chrome，也不读页面，纯查产物。
+# 这一仓的出口不是 FAILED 而是读回工件的 FINAL，所以红必须并进 FINAL —— 否则块里红了、
+# 横幅仍写 ALL GREEN、退出码仍是 0，正是静态审计看不见的那条假绿通道。
+echo "=== deploy-set ==="
+node tools/deploy-set.mjs; DS1=$?
+node tools/deploy-set-selftest.mjs; DS2=$?
+[ "$DS1" -eq 0 ] && [ "$DS2" -eq 0 ] || FINAL=1
+echo "GATE_RC=$FINAL" >>"$GATE"
 # 只报这一跑真的跑过的形态：SHAPES=root / DEPLOYED_URL 那种单形态跑，旧文案照样打印"两种 URL 形态"。
 # 阴性自证也走同一条出口：故意改错期望时这一跑的 **rc 必须非 0**。
 [ "$SABOTAGE" = 1 ] && echo "=== 阴性自证这一跑：期望被故意改错，上面必须有 FAIL 且**退出码非 0** ==="
