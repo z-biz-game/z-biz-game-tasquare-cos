@@ -139,6 +139,9 @@ X13 内联位图谎报尺寸——只在有靶子时下：X11/X12 要页面上�
 不同，台架跟着走。
 
 `node tools/deploy-set.mjs` 与 `node tools/deploy-set-selftest.mjs` 就是 CI 跑的那两条命令本身
-（package.json 里的 `deploy-set` / `deploy-set:selftest` 只是同一支脚本的 npm 入口）；把它们接进本仓
-那条浏览器 one-shot（`tools/verify.sh`）还欠着——那道脚本的腿名单与条数钉是每个仓自己的形状。
+（package.json 里的 `deploy-set` / `deploy-set:selftest` 只是同一支脚本的 npm 入口）；本地整闸的收尾
+也跑这两步（`tools/verify.sh:510-512`），并且把它们的红**并进本仓的出口位** —— 这一仓的裁决读的不是
+包装脚本的 `FAILED`，而是工件里那一位 `GATE_RC`（`tools/verify.sh:513-514`），所以块必须排在
+结论横幅（`tools/verify.sh:518`）之前、`exit $FINAL`（`tools/verify.sh:520`）之前，否则就是
+「块里红了、横幅仍写 ALL GREEN、退出码还是 0」。
 
