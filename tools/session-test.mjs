@@ -546,7 +546,10 @@ console.log('\n[§10 sw.js：版本号进 cache 名 · 子资源网络优先 · 
     configurable: true, writable: true,
     value: {
       open: (name) => { cacheLog.opened.push(name); return Promise.resolve(fakeCache); },
-      keys: () => { cacheLog.keys++; return Promise.resolve(['tasquare-v0', 'tasquare-v1']); },
+      // 当前版本名从 install 实测那一个来（也就是 sw.js 里的 VERSION），不写死：写死的话每次正当
+      // bump VERSION 都得回来改这根桩件，而 bump 本身正是这条腿要保护的动作。stale 那条故意取成
+      // 不带 v数字 的名字，免得它自己撞上某个真发过货的版本号。
+      keys: () => { cacheLog.keys++; return Promise.resolve(['tasquare-stale', cacheLog.opened[0] || 'tasquare-stale']); },
       delete: (k) => { cacheLog.deleted.push(k); return Promise.resolve(true); },
     },
   });
@@ -586,7 +589,8 @@ console.log('\n[§10 sw.js：版本号进 cache 名 · 子资源网络优先 · 
 
   handlers.activate({ waitUntil: (p) => waitUntil.push(p) });
   await waitUntil[waitUntil.length - 1];
-  eq('§10 activate 只删旧版本 cache（不是把当前版本也删了）', cacheLog.deleted.join(','), 'tasquare-v0');
+  eq('§10 activate 只删旧版本 cache（不是把当前版本也删了）', cacheLog.deleted.join(','), 'tasquare-stale');
+  ok(`§10 当前版本 "${version}" 不在被删的那一批里`, !cacheLog.deleted.includes(version), cacheLog.deleted.join(','));
 
   const mkReq = (url, method = 'GET', mode = 'cors') => ({ url, method, mode });
   responded = null;

@@ -8,11 +8,23 @@
 母题分两层：
   · full（≥180px）：4×4 题面，两个互不共边的黑区（2×2 与 1×1）、外粗内细的 nikoli 边框、
     线索数字画在真正的圆里，另外留一个不带圈的 `?`（源文本就不带圈）。
-  · mark（<180px，含 favicon 16/32）：同一个构图的减笔版 —— 2×2 黑块 + 一根粗边 + 一个圈。
-    16px 上画 4×4 会糊成灰斑，小尺寸宁可少画两笔也要保住"方块"这个形状。
+  · mark（<180px：icon 16/32/48/96，页面 `<link rel="icon">` 就指这三张里的 16/32/48）：同一个
+    构图的减笔版 —— 2×2 黑块 + 一根粗边 + 一个圈。16px 上画 4×4 会糊成灰斑，小尺寸宁可少画
+    两笔也要保住"方块"这个形状。原先另有一套 favicon_16/32/48：16 与 48 与 icon_16/48 逐字节
+    相同（纯副本），32 却是拿详版母图缩的（违反这条 <180 走减笔的口径），三张都已删掉。
 
-线索数字不是编的：`clues_for()` 从黑区图样按规则现算（上下左右四个邻格里有几个黑格）。
-所以图标上那个数字与盘面的黑区永远自洽 —— 改图样，数字跟着改。
+线索数字不是编的，也不是"数邻格里有几个黑格"——那是另一款题的口径。本仓出货用的是引擎
+`js/engine/rules.js` 的默认读数 `readA='area'`，即条款 **R4「圈内数字＝正交邻接的黑区格数之和」**：
+一个格子邻着某个黑区，就加上**那个区的面积**（同一个区只加一次）。所以邻着 2×2 那块的格子
+读的是 **4**，同时邻着 2×2 与另一枚 1×1 的格子读的是 **5**。`clues_for()` 按这条现算。
+`?` 更不许随手放：条款 **R5「问号格必须至少邻一个黑格」** —— 它只能落在**真的邻着黑区**的格子上
+（落在零邻黑格的格子上，等于图标自己违反它想教的那条规则；本仓实测踩过：母图那个 `?`
+原先放在 (3,3)，而 (3,3) 的四邻没有一个黑格，裁判 `verify()` 直接报 R5）。
+
+母题的两张题面（4×4 与社交卡上那张 8×8）连同画上去的 token 一起导出到
+`assets/gen/motif.json`，由 `tools/motif-test.mjs` 拿**真引擎**（`makeFace` + `verify` +
+`countSolutions`）复验一遍：python 这一侧的口径与引擎一旦分叉，那道闸就红。
+图标只声称"题面自洽且画出来的黑区是裁判认得的解之一"，**不**声称解唯一（实测 count≥2）。
 
 配色取自 css/style.css 的 :root（--paper/--ink/--accent/--bad/--won），不另起一套。
 
@@ -24,6 +36,7 @@
 依赖：Pillow（主编机自带）。生成物一律落盘提交，页面不在运行时画图。
 """
 import hashlib
+import json
 import os
 import random
 import struct
@@ -58,26 +71,91 @@ def rgb(h):
 PAPER_SEED = 20260930   # 纸质颗粒
 INK_SEED = 731          # 墨面斑
 MASTER = 1024
-SIZES_ICON = [16, 32, 48, 64, 96, 180, 192, 512, 1024]
+SIZES_ICON = [16, 32, 48, 96, 192, 512, 1024]   # 只画有人引的尺寸：64 与 180 曾各留一张死图/一张与 apple-touch-icon 同字节的副本
 MARK_BELOW = 180        # <180px 走减笔母题
 
-# 4×4 合法题面：黑区 = 左上 2×2 + (2,2) 的 1×1，两块不共边，白格全连通。
+# 4×4 母题题面：黑区 = 左上 2×2 + (2,2) 的 1×1，两块不共边，白格全连通。
 FACE_H, FACE_W = 4, 4
 BLACK_CELLS = {(0, 0), (0, 1), (1, 0), (1, 1), (2, 2)}
+# `?` 落在 (0,2)：它的四邻里只有 (0,1) 是黑格 ⇒ 邻着 2×2 那一块，R5 成立（原先写死在 (3,3)，
+# 而 (3,3) 零邻黑格 ⇒ 图标自己违反 R5，裁判 verify() 报 R5 question-without-adjacent-black）。
+MASTER_QMARK = (0, 2)
+# 社交卡上那张 8×8：三块互不共边的正方形区（2×2 一块、另一个 2×2 一块、3×3 一块）。
+OG_H = OG_W = 8
+OG_BLACK_CELLS = {(0, 0), (0, 1), (1, 0), (1, 1), (5, 1), (5, 2), (6, 1), (6, 2),
+                  (2, 5), (2, 6), (2, 7), (3, 5), (3, 6), (3, 7), (4, 5), (4, 6), (4, 7)}
+# (5,0) 的四邻只有 (5,1) 是黑格 ⇒ 邻着左下那块 2×2，R5 成立（原先写死在 (6,6)，零邻黑格）。
+OG_QMARK = (5, 0)
 NBR = ((-1, 0), (1, 0), (0, -1), (0, 1))
 
 
-def clues_for(black):
-    """按规则现算线索：白格的数字 = 四邻里有几个黑格；0 就不印。"""
+def components(black):
+    """正交连通的墨区，每块带回外接框与面积 —— 与引擎 rules.js::components 同一语义。"""
+    seen, comps = set(), []
+    for cell in sorted(black):
+        if cell in seen:
+            continue
+        stack, comp = [cell], []
+        seen.add(cell)
+        while stack:
+            x = stack.pop()
+            comp.append(x)
+            for dr, dc in NBR:
+                q = (x[0] + dr, x[1] + dc)
+                if q in black and q not in seen:
+                    seen.add(q)
+                    stack.append(q)
+        comps.append(sorted(comp))
+    return comps
+
+
+def clues_for(black, h=None, w=None):
+    """R4 现算：白格的读数 = 正交邻到的**每一块黑区的面积之和**（同一块只加一次）；0 就不印。"""
+    hh = h or FACE_H
+    ww = w or FACE_W
+    owner, areas = {}, {}
+    for k, cp in enumerate(components(black)):
+        areas[k] = len(cp)
+        for cell in cp:
+            owner[cell] = k
     out = {}
-    for r in range(FACE_H):
-        for c in range(FACE_W):
+    for r in range(hh):
+        for c in range(ww):
             if (r, c) in black:
                 continue
-            n = sum(1 for dr, dc in NBR if (r + dr, c + dc) in black)
+            touched = {owner[(r + dr, c + dc)] for dr, dc in NBR if (r + dr, c + dc) in owner}
+            n = sum(areas[k] for k in touched)
             if n:
                 out[(r, c)] = n
     return out
+
+
+def qmark_touches(black, cell):
+    """R5 自检：这个格子能不能放 `?` —— 必须不是黑格，且四邻至少触到一块黑区。"""
+    if cell in black:
+        return False
+    return any((cell[0] + dr, cell[1] + dc) in black for dr, dc in NBR)
+
+
+def face_tokens(black, clues, qmark, h=None, w=None):
+    """画上去的那串 token 只从这里出：图与 motif.json 因此不可能各说一套。"""
+    hh = h or FACE_H
+    ww = w or FACE_W
+    rows = []
+    for r in range(hh):
+        row = []
+        for c in range(ww):
+            k = (r, c)
+            if k in black:
+                row.append('.')
+            elif qmark and k == qmark:
+                row.append('?')
+            elif k in clues:
+                row.append(str(clues[k]))
+            else:
+                row.append('.')
+        rows.append(' '.join(row))
+    return rows
 
 
 def legal(black):
@@ -190,11 +268,13 @@ def cjk_font(px, bold=False):
     return ImageFont.load_default()
 
 
-def draw_face(img, origin, side, palette, black, clues, qmark, ring_label=True):
+def draw_face(img, origin, side, palette, black, clues, qmark, ring_label=True, h=None, w=None):
     """画一张题面：外粗内细边框 + 墨方块 + 圈内数字 + 不带圈的 ?"""
     d = ImageDraw.Draw(img)
     ox, oy = origin
-    u = side / FACE_W
+    fh = h or FACE_H
+    fw = w or FACE_W
+    u = side / fw
     paper, ink, accent = rgb(palette['--paper']), rgb(palette['--ink']), rgb(palette['--accent'])
     # 外粗内细：整张盘的上下走粗边，每格走左右细边（沿用 css 的边框语言）
     thick = max(3, side * 0.028)
@@ -206,9 +286,9 @@ def draw_face(img, origin, side, palette, black, clues, qmark, ring_label=True):
         crop = inkblk.crop((int(c * u), int(r * u), int((c + 1) * u), int((r + 1) * u)))
         img.paste(crop.resize((max(1, int(u)), max(1, int(u))), Image.LANCZOS), (int(x0), int(y0)))
     # 细内边
-    for k in range(1, FACE_W):
+    for k in range(1, fw):
         d.line([ox + k * u, oy, ox + k * u, oy + side], fill=ink, width=int(thin))
-    for k in range(1, FACE_H):
+    for k in range(1, fh):
         d.line([ox, oy + k * u, ox + side, oy + k * u], fill=ink, width=int(thin))
     # 粗外边
     d.rectangle([ox, oy, ox + side, oy + side], outline=ink, width=int(thick))
@@ -242,15 +322,43 @@ def ink_tile(plate, size):
     return out.resize((size, size), Image.LANCZOS)
 
 
-def master_full(palette):
+def face_spec(name, black, qmark, h, w):
+    """一张题面的唯一推导处：画到图上的、写进 motif.json 的、node 闸复验的都是这一份。"""
+    ok, why = legal(set(black))
+    if not ok:
+        raise SystemExit(f'{name} 的图样自己就不合法：{why}')
+    if qmark is not None and not qmark_touches(black, qmark):
+        raise SystemExit(f'{name} 的 `?` 落在 {qmark}：四邻没有黑格，违反 R5')
+    clues = clues_for(set(black), h, w)
+    printed = {k: v for k, v in clues.items() if k != qmark}
+    return {
+        'name': name, 'h': h, 'w': w,
+        'blacks': [[r, c] for r, c in sorted(black)],
+        'qmark': list(qmark) if qmark else None,
+        'clues': {f'{r},{c}': v for (r, c), v in sorted(printed.items())},
+        'face': face_tokens(set(black), printed, qmark, h, w),
+    }
+
+
+def build_motifs():
+    return [face_spec('master-4x4', BLACK_CELLS, MASTER_QMARK, FACE_H, FACE_W),
+            face_spec('og-8x8', OG_BLACK_CELLS, OG_QMARK, OG_H, OG_W)]
+
+
+def draw_spec(img, origin, side, palette, spec):
+    return draw_face(img, origin, side, palette, [tuple(b) for b in spec['blacks']],
+                     {tuple(int(x) for x in k.split(',')): v for k, v in spec['clues'].items()},
+                     tuple(spec['qmark']) if spec['qmark'] else None,
+                     h=spec['h'], w=spec['w'])
+
+
+def master_full(palette, spec):
     side = MASTER
     img = Image.new('RGBA', (side, side), rgb(palette['--paper']) + (255,))
     grain = paper_tile(side, rgb(palette['--paper']), PAPER_SEED, alpha_max=20)
     img = Image.alpha_composite(img, grain)
-    clues = clues_for(BLACK_CELLS)
-    q = (3, 3) if (3, 3) not in clues else None
     pad = side * 0.12
-    draw_face(img, (pad, pad), side - 2 * pad, palette, sorted(BLACK_CELLS), clues, q)
+    draw_spec(img, (pad, pad), side - 2 * pad, palette, spec)
     return img
 
 
@@ -264,8 +372,10 @@ def master_mark(palette):
     plate = ink_plate(side // 2, ink, INK_SEED)
     bx, by, bw = side * 0.14, side * 0.14, side * 0.44
     img.paste(plate.resize((int(bw), int(bw)), Image.LANCZOS), (int(bx), int(by)))
-    # 圈内数字 = 同一张题面现算出来的最大线索（不是另编一个数：图标与 full 母题同一张盘）
-    n = max(clues_for(set(BLACK_CELLS)).values())
+    # 圈内数字 = 图上那块墨区的面积：面积口径下，任何邻着它的格子读的都是这个数（2×2 ⇒ 4）。
+    # 早先这里取的是 max(clues.values())，改成面积口径后那会是 5 —— 而 5 需要**两块**区才读得出来，
+    # 减笔母题上只画了一块，等于在小图标上写一个图上无法自证的数字。
+    n = max(len(cp) for cp in components(set(BLACK_CELLS)))
     cx, cy, rad = side * 0.665, side * 0.665, side * 0.245
     d.ellipse([cx - rad, cy - rad, cx + rad, cy + rad], fill=rgb(palette['--paper']),
               outline=ink, width=int(side * 0.035))
@@ -304,28 +414,18 @@ def maskable(full, palette):
     return bg
 
 
-def og_card(palette):
+def og_card(palette, spec):
     """1200×630 社交卡：左边真题面，右边标题 + 一句玩法 + 部署地址。"""
     W, H = 1200, 630
     img = paper_rgb(W, H, rgb(palette['--paper']), PAPER_SEED, 16)
     d = ImageDraw.Draw(img)
     ink = rgb(palette['--ink'])
     quiet = tuple(int(0.55 * i + 0.45 * 255) for i in ink)
-    # 左：8×8 的真题面（三块互不共边的正方形区：2×2 一块、另一个 2×2 一块、3×3 一块）
-    big_black = {(0, 0), (0, 1), (1, 0), (1, 1), (5, 1), (5, 2), (6, 1), (6, 2),
-                 (2, 5), (2, 6), (2, 7), (3, 5), (3, 6), (3, 7), (4, 5), (4, 6), (4, 7)}
-    global FACE_H, FACE_W
-    keep = (FACE_H, FACE_W)
-    FACE_H = FACE_W = 8
-    ok8, why8 = legal(big_black)
-    if not ok8:
-        raise SystemExit(f'社交卡上的 8×8 不合法：{why8}')
-    clues8 = clues_for(big_black)
+    # 左：8×8 的真题面（三块互不共边的正方形区：2×2 两块、3×3 一块），题面由 build_motifs 现推
     side = 470
     ox, oy = 56, (H - side) / 2
     face = Image.new('RGBA', (W, H), (0, 0, 0, 0))
-    draw_face(face, (ox, oy), side, palette, sorted(big_black), clues8, (6, 6))
-    FACE_H, FACE_W = keep
+    draw_spec(face, (ox, oy), side, palette, spec)
     img.paste(face, (0, 0), face)
     d = ImageDraw.Draw(img)
     tx = 600
@@ -367,13 +467,20 @@ def main():
     palette = css_palette()
     print('配色（从 css/style.css :root 实测）：'
           + ' · '.join(f'{k}={v}' for k, v in palette.items()))
-    ok, why = legal(set(BLACK_CELLS))
-    print(f'母题题面自证：{"合法" if ok else "非法"} —— {why}')
-    if not ok:
-        raise SystemExit(f'母题自己就不合法：{why}')
-    print(f'现算线索：{ {str(k): v for k, v in sorted(clues_for(BLACK_CELLS).items())} }')
+    motifs = build_motifs()
+    spec_path = os.path.join(HERE, 'motif.json')
+    spec_text = json.dumps({'readA': 'area', 'faces': motifs}, ensure_ascii=False, indent=2) + '\n'
+    with open(spec_path, 'w', encoding='utf-8') as fh:
+        fh.write(spec_text)
+    print(f'\n题面自证（面积口径 R4 + R5，导出 {os.path.relpath(spec_path, REPO)} 给 node 闸复验）：')
+    for m in motifs:
+        print(f'  {m["name"]}: 黑区 {len(m["blacks"])} 格 / {len(components(set(tuple(b) for b in m["blacks"])))} 块 · '
+              f'印 {len(m["clues"])} 条数字 + `?`@{tuple(m["qmark"])}')
+        for row in m['face']:
+            print(f'     {row}')
+        print(f'     读数 {m["clues"]}')
 
-    full = master_full(palette)
+    full = master_full(palette, motifs[0])
     mark = master_mark(palette)
     print('\n[icons]')
     for s in SIZES_ICON:
@@ -382,10 +489,7 @@ def main():
     write(rounded(full.resize((180, 180), Image.LANCZOS)), 'icons/apple-touch-icon.png', '180=Apple 口径')
     write(maskable(rounded(full, 0.0), palette).resize((512, 512), Image.LANCZOS),
           'icons/icon-maskable-512.png', 'maskable 安全区 62%')
-    write(rounded(full.resize((32, 32), Image.LANCZOS)), 'icons/favicon-32.png')
-    write(rounded(mark.resize((48, 48), Image.LANCZOS)), 'icons/favicon-48.png')
-    write(rounded(mark.resize((16, 16), Image.LANCZOS)), 'icons/favicon-16.png')
-    write(og_card(palette), 'icons/og-image.png', '1200x630 社交卡')
+    write(og_card(palette, motifs[1]), 'icons/og-image.png', '1200x630 社交卡')
 
     print('\n[游戏内位图]')
     write(paper_tile(256, rgb(palette['--paper']), PAPER_SEED, 22), 'assets/textures/paper-grain.png',
@@ -402,11 +506,13 @@ def main():
           '标题区的静图（reduceMotion 用它替掉动效）')
 
     print('\n[确定性自证]')
-    again = master_full(palette)
+    again = master_full(palette, build_motifs()[0])
     h1 = hashlib.sha256(full.tobytes()).hexdigest()[:16]
     h2 = hashlib.sha256(again.tobytes()).hexdigest()[:16]
     print(f'  母图重跑哈希 {h1} vs {h2} ⇒ {"同图" if h1 == h2 else "不同图（随机没钉住）"}')
-    if h1 != h2:
+    drift = open(spec_path, encoding='utf-8').read() != spec_text
+    print(f'  题面导出重跑 {"一致" if not drift else "不一致（几何在两次推导之间漂了）"}')
+    if h1 != h2 or drift:
         raise SystemExit(2)
 
 

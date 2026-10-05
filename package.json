@@ -1,7 +1,7 @@
 {
   "name": "tasquare",
   "version": "0.1.0",
-  "description": "たすくえあ Tasquare · 方格 —— 黑格拼成互不共边的正方形区，圈内数字＝邻接黑区格数之和、? ＝至少邻一个黑格、白格全连通。裁判 countSolutions 穷举回答唯一性，铅笔 pencilSolve 零猜测回答可推性，两者对同一批候选方形说话。页面无构建、零依赖；位图全部由 assets/gen/make_art.py 现画后随仓发布（19 张 PNG），无音频文件（音效在浏览器现合成）。",
+  "description": "たすくえあ Tasquare · 方格 —— 黑格拼成互不共边的正方形区，圈内数字＝邻接黑区格数之和、? ＝至少邻一个黑格、白格全连通。裁判 countSolutions 穷举回答唯一性，铅笔 pencilSolve 零猜测回答可推性，两者对同一批候选方形说话。页面无构建、零依赖；位图全部由 assets/gen/make_art.py 现画后随仓发布（14 张 PNG，题面导成 assets/gen/motif.json 由 tools/motif-test.mjs 送进真引擎复验），无音频文件（音效在浏览器现合成）。",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -10,11 +10,12 @@
     "start": "node server.cjs",
     "dev": "node server.cjs 5611",
     "prefix": "PREFIX=/z-biz-game-tasquare-cos PORT=5612 node server.cjs",
-    "test": "node tools/rule-test.mjs && node tools/counter-test.mjs && node tools/pencil-test.mjs && SAMPLES=24 node tools/balance.mjs && node tools/session-test.mjs",
+    "test": "node tools/rule-test.mjs && node tools/counter-test.mjs && node tools/pencil-test.mjs && SAMPLES=24 node tools/balance.mjs && node tools/session-test.mjs && node tools/motif-test.mjs",
     "rule": "node tools/rule-test.mjs",
     "counter": "node tools/counter-test.mjs",
     "pencil": "node tools/pencil-test.mjs",
     "session": "node tools/session-test.mjs",
+    "motif": "node tools/motif-test.mjs",
     "balance": "SAMPLES=60 node tools/balance.mjs",
     "check": "for f in $(find js tools \\( -name '*.js' -o -name '*.mjs' -o -name '*.cjs' \\)); do node --check \"$f\" || exit 1; done && node --check server.cjs && echo OK",
     "verify": "bash tools/verify.sh",

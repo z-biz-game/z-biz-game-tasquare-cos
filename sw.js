@@ -8,7 +8,7 @@
 //
 // 改动了 SHELL 或本文件的策略 ⇒ 必须把 VERSION 往前挪一格，否则 activate 那一步不会重跑。
 
-const VERSION = 'tasquare-v1';
+const VERSION = 'tasquare-v2';
 
 // 相对 sw.js 解析 ⇒ Pages 的 /<repo>/ 前缀形态与仓库=文档根的形态同一条代码都成立。
 const SHELL = [
@@ -16,7 +16,7 @@ const SHELL = [
   './index.html',
   './css/style.css',
   './manifest.webmanifest',
-  './icons/favicon-32.png',
+  './icons/icon-32.png',
   './icons/apple-touch-icon.png',
   './icons/icon-192.png',
   './icons/icon-512.png',
