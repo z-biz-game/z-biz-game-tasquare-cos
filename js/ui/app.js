@@ -47,7 +47,30 @@ function parseHash(h) {
   return tiers.some((t) => t.key === m[1]) ? { tierKey: m[1], round: Number(m[2]) } : null;
 }
 
+/**
+ * 台账（`store.js` 的 index 那一路）：一局一条 {tier, round, seed, elapsed}，最新在前。
+ * 存在理由：盘面档只存 {seed, marks}（浏览器闸的续局腿按这个形状取证，不能改），所以**用时**
+ * 没有别的地方可去；而 §1 那段"坏一条只丢那一条"的解码如果没有生产者，它就只是被测着的死代码。
+ * 同一局就地更新而不是每落一子追加一条 —— 索引只是台账，不是操作日志。
+ */
+function commitLedger() {
+  if (!persist.available || !game || !game.ok) return null;
+  const rec = { tier: game.tierKey, round: game.round, seed: game.seed, elapsed: Math.floor(motion.st.elapsed) };
+  const others = persist.index().records.filter((r) => !(r.tier === rec.tier && r.round === rec.round));
+  persist.writeIndex([rec, ...others]);            // 条数上限由 writeIndex 自己裁到 INDEX_MAX
+  return rec;
+}
+
+/** 续玩把思考时长接回来：档号 + 局号 + seed 三条全对上才接（seed 变了就是换题面，时钟不该跟过来）。 */
+function restoreLedger() {
+  if (!persist.available || !game || !game.ok || !game.saved) return 0;
+  const hit = persist.index().records.find(
+    (r) => r.tier === game.tierKey && r.round === game.round && r.seed === game.seed);
+  return hit ? motion.setElapsed(hit.elapsed) : 0;
+}
+
 function load(tierKey, round) {
+  if (game && game.ok) commitLedger();              // 说走就走（换档/换局）：上一局的用时先落账
   game = makeGame(tierKey, round, store);
   history.replaceState(null, '', `#${game.tierKey}/${game.round}`);   // 不触发 hashchange：换局只有一次 produce
   // 换局 = 动效与时钟整层复位。只 reset 不 start 的话下一帧的 dt 会全砸进第一步。
@@ -56,6 +79,7 @@ function load(tierKey, round) {
   wonFired = false;
   clockPainted = -1;
   if (game.ok) motion.start();
+  restoreLedger();
   prefs.tier = tierKey;
   persist.writePrefs(prefs);
   relayout();
@@ -140,6 +164,7 @@ function renderStatus() {
   paintState(v);
   if (v.full && v.legal && !wonFired) {
     wonFired = true;
+    commitLedger();                        // 完成的那一刻就把用时落账（不等用户去按别的按钮）
     audio.play('win');
     const f = game.face;
     motion.emit(-1, { row: f.h / 2, col: f.w / 2, kind: 'win' });
@@ -344,6 +369,9 @@ window.addEventListener('keydown', (e) => {
   const hit = {
     p: () => { setPaused(!motion.st.paused); },
     P: () => { setPaused(!motion.st.paused); },
+    // 空格在**没有**焦点格的时候才是暂停（焦点在格子上时上面已经 return 了，不会双触发）。
+    // 页面上那句"全局键：P 或 空格 暂停"没有这一条就是空头承诺，而浏览器会把它读成页面滚动。
+    ' ': () => { setPaused(!motion.st.paused); },
     r: () => { restart(); }, R: () => { restart(); },
     n: () => { load(game.tierKey, game.round + 1); }, N: () => { load(game.tierKey, game.round + 1); },
     m: () => { setMuted(!audio.muted()); }, M: () => { setMuted(!audio.muted()); },
@@ -419,6 +447,10 @@ window.addEventListener('hashchange', () => {
   if (p.tierKey !== game.tierKey || p.round !== game.round) load(p.tierKey, p.round);
 });
 
+// 说走就走的第三条路（关页面/刷新/切到后台被冻结）：pagehide 是浏览器给的最后一个同步机会，
+// 没有它的话"玩到一半关掉 → 用时归零"这条还是只兑了一半。
+window.addEventListener('pagehide', () => { commitLedger(); });
+
 /** 浏览器闸的读数口：状态由引擎派生，闸拿它与 node 侧逐字节对账。 */
 window.tasquare = {
   state: () => (game ? {
@@ -445,6 +477,10 @@ window.tasquare = {
   geo: () => (fx ? fx.geo() : null),
   fullscreen: () => !!document.fullscreenElement,
   prefs: () => ({ ...prefs }),
+  // 台账读数：用时要是真落进盘上了，这里就得能读回那条 {tier,round,seed,elapsed}；
+  // 谁的 writeIndex 写丢了、谁改了 INDEX_KEY 的形状，这条一照就现形（不是信注释）。
+  ledger: () => persist.index(),
+  commitLedger,
 };
 
 // 装机通道：load 之后再注册（早于 load 会跟首屏资源抢同一条队列）。

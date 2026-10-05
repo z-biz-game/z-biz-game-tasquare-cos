@@ -123,6 +123,18 @@ export function makeMotion({ reducedMotion = false, seed = 20260930 } = {}) {
   function resume() { st.paused = false; return st; }   // 不追帧：accum 里最多剩一帧的零头
   function setReducedMotion(on) { st.reduced = !!on; if (st.reduced) st.sparks.length = 0; return st; }
 
+  /**
+   * 续玩把思考时长接回来（否则刷新一次 HUD 就退回 00:00，而"每一格都即时存在本地"那句话
+   * 只兑了一半）。台账那条已经被 decodeIndex 逐字段验过一遍，这里是第二道：非有限数与
+   * 负数一律当 0，绝不把脏数字喂进 HUD 的时钟。
+   * @returns 实际接回来的秒数
+   */
+  function setElapsed(sec) {
+    const v = Number(sec);
+    st.elapsed = Number.isFinite(v) && v > 0 ? v : 0;
+    return st.elapsed;
+  }
+
   /** 重开：时钟、累加器、涟漪、墨点、计数**全部**归零（漏一个就是"重开后又接着上一局的动效"）。 */
   function reset() {
     st.running = false; st.paused = false;
@@ -146,5 +158,5 @@ export function makeMotion({ reducedMotion = false, seed = 20260930 } = {}) {
     };
   }
 
-  return { st, tick, step, emit, start, pause, resume, reset, setReducedMotion, snapshot };
+  return { st, tick, step, emit, start, pause, resume, reset, setReducedMotion, setElapsed, snapshot };
 }
