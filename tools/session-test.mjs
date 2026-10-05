@@ -25,7 +25,7 @@ import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 
 import {
-  BOARD_PREFIX, ELAPSED_MAX, INDEX_KEY, PREFS_KEY, boardKey, decodeBoard, decodeIndex,
+  BOARD_PREFIX, ELAPSED_MAX, INDEX_KEY, INDEX_MAX, PREFS_KEY, boardKey, decodeBoard, decodeIndex,
   decodePrefs, decodeRecord, makeStore, browserStorage,
 } from '../js/ui/store.js';
 import { RIPPLE_LIFE, SIM_STEP, SPARK_LIFE, makeLcg, makeMotion } from '../js/ui/motion.js';
@@ -656,6 +656,52 @@ console.log('\n[§11 pwa.js：file: 静默跳过 · 前缀形态按 baseURI 解�
   const s4 = await p2.registerServiceWorker();
   eq('§11 环境不支持 SW 时原样交回状态、不建任何调用', s4.supported, false);
   eq('§11 不支持时也不抛、registered 仍为 false', String(s4.registered), 'false');
+}
+
+console.log('\n[§12 台账这条腿：写进去的是台账 · 接回来的是时钟 · 脏数字到不了 HUD]');
+{
+  const mem = new Map();
+  const store = {
+    getItem: (k) => (mem.has(k) ? mem.get(k) : null),
+    setItem: (k, v) => { mem.set(k, String(v)); return true; },
+    removeItem: (k) => { mem.delete(k); return true; },
+  };
+  const persist = makeStore(store);
+  const m = makeMotion();
+
+  eq('§12 起手台账为空（这条腿不是拿旧档自证）', persist.index().records.length, 0);
+  persist.writeIndex([{ tier: 'easy-6x6', round: 0, seed: 'tasquare|easy-6x6|0', elapsed: 41.7 }]);
+  const back = persist.index();
+  eq('§12 写一条就读回一条', back.records.length, 1);
+  eq('§12 索引里不塞盘面串（盘面在 board 键下，台账只管局号与用时）',
+    String(mem.get(INDEX_KEY)).includes('marks'), 'false');
+  eq('§12 读回的 marks 恒为 null', back.records[0].marks, null);
+  eq('§12 落账的用时原样回来（floor 之后与 HUD 同一个数）', Math.floor(back.records[0].elapsed), 41);
+
+  eq('§12 setElapsed 正数原样接回来', m.setElapsed(back.records[0].elapsed), 41.7);
+  m.start();
+  for (let s = 0; s < 60; s++) m.step(1 / 60);
+  ok('§12 接回来的时钟接着走，不是只改一次显示', Math.abs(m.st.elapsed - 42.7) < 1e-6, `elapsed=${m.st.elapsed.toFixed(6)}`);
+  eq('§12 NaN 判 0（脏数字不进时钟）', m.setElapsed(Number('ten')), 0);
+  eq('§12 Infinity 判 0', m.setElapsed(Infinity), 0);
+  eq('§12 负数判 0（时钟不许倒退）', m.setElapsed(-3), 0);
+  eq('§12 undefined 判 0', m.setElapsed(undefined), 0);
+  eq('§12 归零之后仍能正常接住好值', m.setElapsed(9), 9);
+
+  // 越界用时：第一道在 decodeRecord 夹，第二道在 setElapsed 挡 —— 连起来不会把 1e9 秒喂给 HUD
+  persist.writeIndex([{ tier: 'easy-6x6', round: 1, seed: 'tasquare|easy-6x6|1', elapsed: 1e9 }]);
+  const dirty = persist.index();
+  eq('§12 越界用时不判死那一条（夹回边界并记账）', dirty.records.length, 1);
+  eq('§12 夹到的边界就是 ELAPSED_MAX', dirty.records[0].elapsed, ELAPSED_MAX);
+  eq('§12 clamped 计数留痕', dirty.clamped, 1);
+  eq('§12 夹过的值接进时钟还是同一个数（第二道不放大）', m.setElapsed(dirty.records[0].elapsed), ELAPSED_MAX);
+
+  const many = Array.from({ length: INDEX_MAX + 6 }, (_, i) => ({
+    tier: 'easy-6x6', round: i, seed: `tasquare|easy-6x6|${i}`, elapsed: i,
+  }));
+  persist.writeIndex(many);
+  eq(`§12 台账条数上限由 writeIndex 自己裁到 ${INDEX_MAX}`, persist.index().records.length, INDEX_MAX);
+  eq('§12 裁的是最旧的那些（新写的排在前面）', persist.index().records[0].round, 0);
 }
 
 console.log(`\nSESSION-TEST ${checks} checks / ${fails} failed`);
