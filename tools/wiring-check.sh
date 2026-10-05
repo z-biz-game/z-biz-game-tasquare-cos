@@ -62,6 +62,9 @@ navigator.serviceWorker.register|js/ui/pwa.js
 decodeBoard|js/ui/game.js
 assets/textures/paper-grain.png|css/style.css
 assets/textures/ink-block.png|css/style.css
+icons/icon-32.png|index.html
+assets/sprites/spark.png|js/ui/fx.js
+assets/gen/motif.json|tools/motif-test.mjs
 viewport-fit=cover|index.html
 env(safe-area-inset-top|css/style.css
 prefers-reduced-motion: reduce|css/style.css
@@ -107,6 +110,7 @@ chk .github/workflows/ci.yml    'node tools/counter-test.mjs'   'CI 跑 counter-
 chk .github/workflows/ci.yml    'node tools/pencil-test.mjs'    'CI 跑 pencil-test'
 chk .github/workflows/ci.yml    'node tools/session-test.mjs'   'CI 跑 session-test（解码/帧率/静音三条行为判据只住在这里）'
 chk .github/workflows/ci.yml    'node tools/balance.mjs'        'CI 跑 balance'
+chk .github/workflows/ci.yml    'node tools/motif-test.mjs'     'CI 跑 motif-test（图标那张题面对真引擎复验）'
 chk .github/workflows/ci.yml    'bash tools/wiring-check.sh'    'CI 跑本脚本（否则这几段门是死代码）'
 chk .github/workflows/ci.yml    'bash tools/verify.sh'          'CI 跑浏览器闸'
 [ "$m" -eq 0 ] || fail=1

@@ -22,7 +22,7 @@ jobs:
       # 无构建 = 文件拷贝：游戏发的是原生 ES module，站点内容 = 页面自己够得到的每一件事。
       # 实测清单：index.html + manifest.webmanifest + sw.js + css/ + js/ + icons/ + assets/
       # （与 tools/wiring-check.sh 第 4 段拼的那份同源 —— 两边不一致就是线上 404 而 CI 全绿）。
-      # server.cjs、tools/（六道闸与 bench）、docs/、package.json 留在工件之外，
+      # server.cjs、tools/（七道闸与 bench）、docs/、package.json 留在工件之外，
       # 也顺手把 node_modules 留在外面 —— `path: .` 会连它一起上传。
       #
       # 版本三元组是真实存在的那一组：configure-pages@v5 / upload-pages-artifact@v3 / deploy-pages@v4。
