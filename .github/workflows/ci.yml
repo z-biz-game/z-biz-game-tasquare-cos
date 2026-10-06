@@ -26,11 +26,7 @@ jobs:
       # tools/ 里两种模块形状并存：scenarios.js 走 ESM（package.json type=module），
       # playtest.cjs / server.cjs 走 CJS。两条通配都要写上，漏一条就是那条文件从此没人检语法。
       - name: Syntax check every source
-        run: |
-          for f in $(git ls-files 'js/*.js' 'js/*/*.js'); do node --check "$f" || exit 1; done
-          for f in $(git ls-files 'tools/*.mjs' 'tools/*.cjs' 'tools/*.js'); do node --check "$f" || exit 1; done
-          node --check server.cjs
-
+        run: npm run check
       # 分层不变量 + 入口接线 + workflow manifest + 工件形状：这四段门**住在 tools/wiring-check.sh 里**，
       # 不在这里的 inline run: 里。理由是兄弟仓踩过的那颗：只存在于 CI 的门本机跑不到，红的时候
       # 现场只能放宽它。现在本机的 `npm run ci` 调同一个脚本，一条门只有一份定义。
