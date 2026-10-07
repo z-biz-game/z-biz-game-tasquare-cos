@@ -68,6 +68,14 @@ deploy-set:selftest → test → verify → wiring 这 7 条 script），要求�
 这种写法、现读出 0 个门禁，兜底那句立刻判它空转而不是绿（`WIRING_RC=1`，`_tmp-tasquare-wiring-r1.log`）——
 读出来的数少到 0 就红，是这一段的默认。
 
+这条入口在上一笔定稿的那份树上跑满过一遍（工作树干净、`HEAD` 即已发布那一笔；起停 15:11:50Z→15:12:12Z，
+二十余秒，机器相关读数、不参与对账）：`check` 打 `OK`；`wiring` 五段全 `ok` 收在 `WIRING-CHECK PASS`；
+`npm test` 四道闸走完；`deploy-set` 打 `部署集：25 条引用（含 3 张位图尺寸核对），失败 0 项` 与 `rows: 44 fail: 0`；
+`deploy-set:selftest` 那十三刀逐条按预期发力（`DS_SELFTEST rc=0`；X13 在本仓打的是 `SKIP · manifest 里没有内联 data:image/png 图标`，这一刀在本仓不落）；
+`verify` 两种形态**都**跑到了——`prefix 11/11 · 183 断言 · FAIL 0` 与 `root 11/11 · 183 断言 · FAIL 0`，`GATE_RC=0`。
+整条 `TASQUARE_CI_RC=0`，读数在那份外层日志里。这一跑之前，上面那行 `npm run ci` 只是把六段拼起来而没有整机
+跑通过：`wiring` 的第 [5] 段能证明"CI 有的本地都有"，证不了这六步真能在一台机器上按顺序走齐。
+
 每道闸守的东西不重叠：`rule-test` 守语义与词汇表（含页面上每句话的出处），`counter-test` 守裁判
 与一条**独立实现的打包枚举**（`tools/lib-packing.mjs`，完全不看线索数值）互相对账，`pencil-test` 守
 每条结论对**全部解**成立且账本自审不出越轨，`balance` 守档位定价与生产路径的形状（结构不变量里就有一条：
