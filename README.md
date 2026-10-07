@@ -49,15 +49,24 @@ npm run prefix       # http://127.0.0.1:5612/z-biz-game-tasquare-cos/   （GitHu
 
 ```bash
 npm run check            # 逐文件 node --check：js/ 与 tools/ 全进去（ESM 与 CJS 两种形状），含 server.cjs
-npm run wiring           # 边界门：分层 / 入口接线 / 两份 workflow 的 manifest / _site 的工件形状
+npm run wiring           # 边界门：分层 / 入口接线 / 两份 workflow 的 manifest / _site 的工件形状 / 本地入口够不够得到 CI 的每一步
 npm test                 # 四道 node 闸：rule-test 98 · counter-test 32 · pencil-test 46 · balance 70
-npm run ci               # = check + wiring + test，本机跑通 ci.yml 的 check job
+npm run ci               # = check + wiring + test + deploy-set + deploy-set:selftest + verify，ci.yml 两个 job 的每一步
 npm run verify           # 第五道闸：真 headless Chrome，11 条腿 × 两种 URL 形态（各 183 条断言）
 npm run verify:deployed  # 同一套腿跑在线上那份字节上（已跑过：11 腿 / 183 断言 / rc=0，见 docs/DESIGN.md §10）
 ```
 
-那四段边界门住在 `tools/wiring-check.sh` 而不是 workflow 的 `run:` 里：CI 与本机调**同一个脚本**，
+那五段边界门住在 `tools/wiring-check.sh` 而不是 workflow 的 `run:` 里：CI 与本机调**同一个脚本**，
 一条门只有一份定义 —— 只存在于 CI 的门在本机跑不到，红的时候现场只剩"放宽它"。
+
+第 [5] 段管的是反方向：本机那条入口有没有悄悄落后于 CI。它从 `ci.yml` 的 `run:` 现读出 8 个门禁，
+再把 `package.json` 的 `scripts.ci` 顺着 `npm run X` 一层层展开（本轮展开到 check → ci → deploy-set →
+deploy-set:selftest → test → verify → wiring 这 7 条 script），要求每个门禁都被够到。改这一版之前，
+`npm run ci` 只到 `npm test` 为止：deploy-set 两步与浏览器闸从来不在它里面，而上面那行注释把它说成
+「本机跑通 ci.yml 的 check job」。两次对照都留了日志：摘掉 `&& npm run verify` 再跑，这一段红并点名
+`MISS tools/verify.sh`（`CTRL_RC=1`，`_tmp-tasquare-wiring-ctrl.log`）；而我第一版的 `run:` 解析式没认出
+这种写法、现读出 0 个门禁，兜底那句立刻判它空转而不是绿（`WIRING_RC=1`，`_tmp-tasquare-wiring-r1.log`）——
+读出来的数少到 0 就红，是这一段的默认。
 
 每道闸守的东西不重叠：`rule-test` 守语义与词汇表（含页面上每句话的出处），`counter-test` 守裁判
 与一条**独立实现的打包枚举**（`tools/lib-packing.mjs`，完全不看线索数值）互相对账，`pencil-test` 守

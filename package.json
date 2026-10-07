@@ -20,7 +20,7 @@
     "verify:local": "SHAPES=root bash tools/verify.sh",
     "verify:deployed": "DEPLOYED_URL=https://z-biz-game.github.io/z-biz-game-tasquare-cos/ SHAPES=deployed bash tools/verify.sh",
     "wiring": "bash tools/wiring-check.sh",
-    "ci": "npm run check && npm run wiring && npm test",
+    "ci": "npm run check && npm run wiring && npm test && npm run deploy-set && npm run deploy-set:selftest && npm run verify",
     "deploy-set": "node tools/deploy-set.mjs",
     "deploy-set:selftest": "node tools/deploy-set-selftest.mjs"
   },

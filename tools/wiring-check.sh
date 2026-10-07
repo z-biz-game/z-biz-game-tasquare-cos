@@ -99,6 +99,57 @@ if [ "$bnd" -eq 0 ]; then
 else
   fail=1
 fi
+echo '[5 本地入口：npm run ci 够得到 ci.yml 的每一个 tools 门禁]'
+# 第 [3] 段钉的是"CI 跑的那些门在 workflow 里还在"，它管不到本机。这一段钉另一半：把 package.json
+# 的 scripts.ci 顺着 `npm run X` 一层层展开，ci.yml 现读出来的每个门禁都得被够到。清单不手抄——
+# 手抄的清单会先烂：README 以前写着 `npm run ci` = 本机跑通 check job，而那条命令其实只到 test 为止，
+# deploy-set / deploy-set:selftest / verify 三步从来不在里面（漏掉的那几步只在 CI 红，本地全绿）。
+node --input-type=module - <<'NODEEOF' || fail=1
+import { readFileSync } from 'node:fs';
+const lines = readFileSync('.github/workflows/ci.yml', 'utf8').split('\n');
+const cmds = [];
+let block = -1;
+for (const l of lines) {
+  const r = /^(\s*)(?:-\s+)?run:\s*(.*)$/.exec(l);
+  if (r) {
+    const body = r[2].trim();
+    if (body === '' || body === '|') { block = r[1].length; continue; }
+    cmds.push(body); block = -1; continue;
+  }
+  if (block >= 0) {
+    const ind = l.match(/^\s*/)[0].length;
+    if (l.trim() !== '' && ind > block) { cmds.push(l.trim()); continue; }
+    block = -1;
+  }
+}
+const GATE = /(?:node|bash|sh) (tools\/[\w.-]+)/g;
+const gates = [...new Set(cmds.flatMap((c) => [...c.matchAll(GATE)].map((m) => m[1])))];
+const scripts = JSON.parse(readFileSync('package.json', 'utf8')).scripts || {};
+const seen = new Set(); const reach = new Set();
+const walk = (name) => {
+  if (seen.has(name)) return;
+  seen.add(name);
+  const body = scripts[name] || '';
+  for (const m of body.matchAll(GATE)) reach.add(m[1]);
+  for (const m of body.matchAll(/npm\s+run\s+([\w:-]+)/g)) walk(m[1]);
+  for (const m of body.matchAll(/npm\s+(test|start)\b/g)) walk(m[1]);
+};
+walk('ci');
+let bad = 0;
+if (gates.length < 6 || reach.size < 6) {
+  console.log(`  MISS 两边至少得各读出 6 个门禁（ci.yml 现读 ${gates.length} · npm run ci 展开 ${reach.size}）—— 解析器空转不给绿`);
+  bad = 1;
+}
+const miss = gates.filter((g) => !reach.has(g));
+for (const g of gates) console.log(`  ${reach.has(g) ? 'ok  ' : 'MISS'} ${g}`);
+if (miss.length) {
+  console.log(`  MISS ci.yml 跑到的这 ${miss.length} 个门禁，npm run ci 够不到：${miss.join(' ')}`);
+  bad = 1;
+} else if (!bad) {
+  console.log(`  ok   ci.yml 现读 ${gates.length} 个门禁，npm run ci（展开 ${[...seen].sort().join(' → ')}）全部够到`);
+}
+process.exit(bad);
+NODEEOF
 
 echo
 if [ "$fail" -eq 0 ]; then
