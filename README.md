@@ -49,15 +49,32 @@ npm run prefix       # http://127.0.0.1:5612/z-biz-game-tasquare-cos/   （GitHu
 
 ```bash
 npm run check            # 逐文件 node --check：js/ 与 tools/ 全进去（ESM 与 CJS 两种形状），含 server.cjs
-npm run wiring           # 边界门：分层 / 入口接线 / 两份 workflow 的 manifest / _site 的工件形状
-npm test                 # 六道 node 闸：rule-test 98 · counter-test 32 · pencil-test 46 · balance 70 · session-test 214 · motif-test 49
-npm run ci               # = check + wiring + test，本机跑通 ci.yml 的 check job
-npm run verify           # 第七道闸：真 headless Chrome，11 条腿 × 两种 URL 形态（各 183 条断言）
+npm run wiring           # 边界门：分层 / 入口接线 / 两份 workflow 的 manifest / _site 的工件形状 / 本地入口够不够得到 CI 的每一步
+npm test                 # 四道 node 闸：rule-test 98 · counter-test 32 · pencil-test 46 · balance 70
+npm run ci               # = check + wiring + test + deploy-set + deploy-set:selftest + verify，ci.yml 两个 job 的每一步
+npm run verify           # 第五道闸：真 headless Chrome，11 条腿 × 两种 URL 形态（各 183 条断言）
 npm run verify:deployed  # 同一套腿跑在线上那份字节上（已跑过：11 腿 / 183 断言 / rc=0，见 docs/DESIGN.md §10）
 ```
 
-那四段边界门住在 `tools/wiring-check.sh` 而不是 workflow 的 `run:` 里：CI 与本机调**同一个脚本**，
+那五段边界门住在 `tools/wiring-check.sh` 而不是 workflow 的 `run:` 里：CI 与本机调**同一个脚本**，
 一条门只有一份定义 —— 只存在于 CI 的门在本机跑不到，红的时候现场只剩"放宽它"。
+
+第 [5] 段管的是反方向：本机那条入口有没有悄悄落后于 CI。它从 `ci.yml` 的 `run:` 现读出 8 个门禁，
+再把 `package.json` 的 `scripts.ci` 顺着 `npm run X` 一层层展开（本轮展开到 check → ci → deploy-set →
+deploy-set:selftest → test → verify → wiring 这 7 条 script），要求每个门禁都被够到。改这一版之前，
+`npm run ci` 只到 `npm test` 为止：deploy-set 两步与浏览器闸从来不在它里面，而上面那行注释把它说成
+「本机跑通 ci.yml 的 check job」。两次对照都留了日志：摘掉 `&& npm run verify` 再跑，这一段红并点名
+`MISS tools/verify.sh`（`CTRL_RC=1`，`_tmp-tasquare-wiring-ctrl.log`）；而我第一版的 `run:` 解析式没认出
+这种写法、现读出 0 个门禁，兜底那句立刻判它空转而不是绿（`WIRING_RC=1`，`_tmp-tasquare-wiring-r1.log`）——
+读出来的数少到 0 就红，是这一段的默认。
+
+这条入口在上一笔定稿的那份树上跑满过一遍（工作树干净、`HEAD` 即已发布那一笔；起停 15:11:50Z→15:12:12Z，
+二十余秒，机器相关读数、不参与对账）：`check` 打 `OK`；`wiring` 五段全 `ok` 收在 `WIRING-CHECK PASS`；
+`npm test` 四道闸走完；`deploy-set` 打 `部署集：25 条引用（含 3 张位图尺寸核对），失败 0 项` 与 `rows: 44 fail: 0`；
+`deploy-set:selftest` 那十三刀逐条按预期发力（`DS_SELFTEST rc=0`；X13 在本仓打的是 `SKIP · manifest 里没有内联 data:image/png 图标`，这一刀在本仓不落）；
+`verify` 两种形态**都**跑到了——`prefix 11/11 · 183 断言 · FAIL 0` 与 `root 11/11 · 183 断言 · FAIL 0`，`GATE_RC=0`。
+整条 `TASQUARE_CI_RC=0`，读数在那份外层日志里。这一跑之前，上面那行 `npm run ci` 只是把六段拼起来而没有整机
+跑通过：`wiring` 的第 [5] 段能证明"CI 有的本地都有"，证不了这六步真能在一台机器上按顺序走齐。
 
 每道闸守的东西不重叠：`rule-test` 守语义与词汇表（含页面上每句话的出处），`counter-test` 守裁判
 与一条**独立实现的打包枚举**（`tools/lib-packing.mjs`，完全不看线索数值）互相对账，`pencil-test` 守
@@ -97,3 +114,51 @@ PRNG 金标准（前 5 个 u32 / 0..9 的洗牌序 / hash32 三个定值）：�
 
 root web `5611` / 前缀 web `5612` / CDP `9611`。`tools/verify.sh` 只起停自己那几份进程，
 Chrome profile 按 URL 形态各一份、落在 mktemp 子目录里。
+
+## 上线的到底是哪一批文件
+
+这个仓没有打包器：站点=一次文件拷贝。以前「拷哪些」写在 `pages.yml` 的 `run:` 里（手抄的几行
+`cp`）。本地 `index.html` 直读仓库根，永远自洽；线上却按那份清单拷，于是页面后来引用的
+`manifest.webmanifest`、`sw.js`、`icons/*` 可能一个都没上去——线上 404，而仓里的引擎测试与
+真浏览器闸全绿，因为它们跑的都是仓库根，没有任何一步在「按清单拷」的那个环境下加载过页面。
+
+现在清单只有一份，住在 `tools/assemble-site.sh`：CI 调它拷 `_site`，本地闸调它拷临时目录，
+然后**对拷出来的产物**提要求（`tools/deploy-set.mjs`）：
+
+- **W 清单与页面同源**：`pages.yml` 里必须真有 `run: bash tools/assemble-site.sh <dir>` 这一行，
+  `ci.yml` 里必须真有 `run: node tools/deploy-set.mjs`。认的是调用那一行，不是文件里出现过这个
+  路径——注释里本来就会写它，只 grep 字符串会被一句散文喂绿。
+- **R 引用可达**：引用不靠手打名单。从 `index.html` 的 `href/src` 出发，凡解析出来是 `.js`/`.css`
+  的就把那一站也扫一遍（CSS 的 `url()`、JS 去掉注释后的 `'./…'` 字面量、`new URL(x, base)` 的两种
+  基、`navigator.serviceWorker.register`、`scope`），`manifest` 的 icons/screenshots/shortcuts 各自
+  的 `src` 也算引用。取径上读不到的那一站本身就是红（读不到＝这一站根本没扫）。每条引用都必须在
+  产物里且非 0 字节；绝对路径单列一条红，因为 Pages 挂在 `/<repo>/` 前缀下会跳出去。
+- **P 位图不许说谎**：`manifest` 声明的 `sizes` 必须等于 PNG IHDR 的真实宽高——文件图标读文件头，
+  内联成 base64 的图标先解码再读同一段。后一条不是可选项：图标可能住在清单里而不是盘上的 `.png`
+  （有的仓另有一条"零二进制文件"的承诺，那条只约束"有没有 .png 这个文件"）；如果 P 段只筛文件名，
+  声明写 512 而真图 192 就一路放行。
+- **钉住两个数**：R 段实际检查的路径条数（`25`）与这一次跑的断言条数（`43`），两个数
+  都钉在 `tools/deploy-set.mjs` 顶部的那对常量里。没改页面却掉了，说明解析断了；删掉一张图标会同时
+  少一条 R10 与那张的 P1/P2，所以两个数一起钉，断言条数能漂就是闸在缩水的信号。这一节故意只写数值、
+  不写那对常量的名字，也不写别仓文档闸的编号：有的仓的文档闸会拿"文档里出现过的同名标识号"回数它
+  自己的条数，还有的会把文档里点到的每个组编号逐个核对"这一轮真的发过"——两道闸共用一个名字，
+  或者在本仓的文档里出现一个本仓没有的组编号，打红的都是不相干的那一边。
+
+`tools/deploy-set-selftest.mjs` 是这两颗钉的阳性证明：它把仓库复制到临时目录，照着每一类断言
+各下一刀（X1 清单不收位图目录 / X2 模块边改名 / X3 CSS 写绝对路径 / X4 `start_url` 绝对 /
+X5 删光 >=512 图标 / X6 少一个必填字段 / X7 声明尺寸与真图不符 / X8 workflow 不调脚本 /
+X9 CI 不跑闸 / X10 是阴性对照——往入口 JS 追加一行只写在注释里的假路径，闸必须仍然绿、条数仍然
+`25`、断言仍然 `43`；X11 og:image 退回相对路径 / X12 og:image 的前缀指向别的 slug /
+X13 内联位图谎报尺寸——只在有靶子时下：X11/X12 要页面上那句 og:image，X13 要清单里真有一段 base64
+图标，没有就打印 SKIP；反过来 X1 没有位图目录可砍时改砍 css，P 段一位都不核时台架直接报靶子不够），
+要求每一刀都让闸**点名**变红。靶子从 `DEPLOY_SET_DUMP=1`
+的出处表现挑（取径真的会读的那支 JS / 那一张 CSS，不写死某一个仓的入口名），所以页面改了、仓与仓
+不同，台架跟着走。
+
+`node tools/deploy-set.mjs` 与 `node tools/deploy-set-selftest.mjs` 就是 CI 跑的那两条命令本身
+（package.json 里的 `deploy-set` / `deploy-set:selftest` 只是同一支脚本的 npm 入口）；本地整闸的收尾
+也跑这两步（`tools/verify.sh:510-512`），并且把它们的红**并进本仓的出口位** —— 这一仓的裁决读的不是
+包装脚本的 `FAILED`，而是工件里那一位 `GATE_RC`（`tools/verify.sh:513-514`），所以块必须排在
+结论横幅（`tools/verify.sh:518`）之前、`exit $FINAL`（`tools/verify.sh:520`）之前，否则就是
+「块里红了、横幅仍写 ALL GREEN、退出码还是 0」。
+

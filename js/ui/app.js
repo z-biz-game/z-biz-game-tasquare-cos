@@ -463,6 +463,9 @@ window.tasquare = {
   } : null),
   mark: (i, v) => { game.mark(i, v); render(); },
   cycle: (i) => { game.cycle(i); render(); },
+  // 供探针驱动：重开本题。挂在窗口上是为了让闸能真的调一次、读 BEFORE/AFTER，
+  // 而不必去合成点击（格子的点击要落到 DOM 上，离屏闸点不稳）。
+  restart: () => { game.restart(); render(); },
   load,
   pwa: () => ({ ...pwa }),
   // 时钟/动效/声音/暂停的读数：任何探针都能复验"这条通道真的在动"，而不是信一句注释。
