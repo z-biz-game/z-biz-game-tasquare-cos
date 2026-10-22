@@ -73,16 +73,26 @@ EOF
 echo '[2b HUD id 对账：app.js 里 $() 取的那个 id 必须真的印在 index.html 上]'
 # 这一条的由来：HUD 上九颗按钮全是新加的，而 app.js 用 $('pause')、$('mute') 这类字面量取它们。
 # id 打错一位，浏览器闸要跑到那一腿才报"元素不存在"，而 wiring 这步 1 秒就能定住它。
+#
+# 反向那半条是本轮补上的：并线时页面留下一颗 **#btn-fullscreen**（app.js 从来不取它），
+# 点下去什么也不会发生，而当时的两条判据都看不见它 —— 前一条查的是"app.js 要的 id 在不在页面上"，
+# 没查"页面上多出来的按钮有没有人接"。**一颗没人接线的按钮就是一颗假控件**，
+# 页面看上去功能齐全、量具却算它"已实现"，所以这里把反向也钉住。
 node -e '
 const fs = require("fs");
 const html = fs.readFileSync("index.html", "utf8");
 const app = fs.readFileSync("js/ui/app.js", "utf8");
 const ids = new Set([...html.matchAll(/id="([^"]+)"/g)].map((m) => m[1]));
 const used = [...app.matchAll(/\$\(\x27([a-zA-Z0-9_-]+)\x27\)/g)].map((m) => m[1]);
+const usedSet = new Set(used);
 let bad = 0;
-for (const u of new Set(used)) if (!ids.has(u)) { console.log(`  MISS app.js 取 #${u}，index.html 里没有这个 id`); bad = 1; }
-console.log(bad ? "  FAIL" : `  ok   app.js 里 ${new Set(used).size} 个 id 全部在 index.html 上（页面共 ${ids.size} 个 id）`);
-process.exit(bad);
+for (const u of usedSet) if (!ids.has(u)) { console.log(`  MISS app.js 取 #${u}，index.html 里没有这个 id`); bad = 1; }
+console.log(bad ? "  FAIL" : `  ok   app.js 里 ${usedSet.size} 个 id 全部在 index.html 上（页面共 ${ids.size} 个 id）`);
+const buttons = [...html.matchAll(/<button[^>]*\bid="([^"]+)"/g)].map((m) => m[1]);
+const dead = buttons.filter((b) => !usedSet.has(b));
+for (const b of dead) console.log(`  MISS 页面上的 #${b} 这颗按钮 app.js 里没有任何 $('"'"'${b}'"'"') 接线 —— 点下去什么也不会发生`);
+console.log(dead.length ? "  FAIL" : `  ok   页面上 ${buttons.length} 颗带 id 的按钮全部被 app.js 接线（没有没人管的死按钮）`);
+process.exit(bad || dead.length ? 1 : 0);
 ' || fail=1
 
 echo '[3 workflow manifest：注释里承诺的步骤必须真的存在]'

@@ -13,12 +13,20 @@ npm start            # http://127.0.0.1:5611/          （仓库自己就是文�
 npm run prefix       # http://127.0.0.1:5612/z-biz-game-tasquare-cos/   （GitHub Pages 的 URL 形状）
 ```
 
-线上那份由 `.github/workflows/pages.yml` 发布：**无构建 = 文件拷贝**（`index.html + css/ + js/`），
-站点地址 <https://z-biz-game.github.io/z-biz-game-tasquare-cos/>。零运行时依赖、无框架、无图片音频。
+线上那份由 `.github/workflows/pages.yml` 发布：**无构建 = 文件拷贝**（`index.html + manifest.webmanifest + sw.js + css/ + js/ + icons/ + assets/`，
+拷哪些只有一份清单，住在 `tools/assemble-site.sh`，CI 与本地闸调的是同一支脚本），
+站点地址 <https://z-biz-game.github.io/z-biz-game-tasquare-cos/>。零运行时依赖、无框架；
+位图是仓里现画的 14 张 PNG（`assets/gen/make_art.py` 画的，`tools/motif-test.mjs` 把图标上那张题面送进真引擎复验），
+音效在浏览器现合成，没有音频文件。
 
 左键在"未知 → 黑 → 白"之间循环，右键直接涂黑或擦掉，方向键走格、回车落子。每一格即时写进本地
 `localStorage`（键是 `tasquare:v1:<档>:<局号>`），回来接着下。局号是递增整数，**不是**按日期算的，
 所以"换一局"永远对得上一个具体的 seed。
+
+侧栏那颗排上的按钮与全局键：**P 或 空格** 暂停 · **R** 重开本题（只清这一局的涂黑，题面与用时都不动）·
+**N** 再来一局 · **M** 静音 · **F** 全屏 · **H 或 ?** 收起/展开玩法说明。
+"重开这一局"（连时钟与动效一起复位）是另一颗单独的按钮，不靠键 —— 两个入口两套语义，
+R 归的是"重开本题"那一档，页面上 `#reset` 的说明与侧栏那段话都这么写。
 
 档位（页面上的按钮文字就是从这张表读的，UI 里没有第二份）：
 
@@ -50,16 +58,16 @@ npm run prefix       # http://127.0.0.1:5612/z-biz-game-tasquare-cos/   （GitHu
 ```bash
 npm run check            # 逐文件 node --check：js/ 与 tools/ 全进去（ESM 与 CJS 两种形状），含 server.cjs
 npm run wiring           # 边界门：分层 / 入口接线 / 两份 workflow 的 manifest / _site 的工件形状 / 本地入口够不够得到 CI 的每一步
-npm test                 # 四道 node 闸：rule-test 98 · counter-test 32 · pencil-test 46 · balance 70
+npm test                 # 六道 node 闸：rule-test 98 · counter-test 32 · pencil-test 46 · balance 70 · session-test 214 · motif-test 49
 npm run ci               # = check + wiring + test + deploy-set + deploy-set:selftest + verify，ci.yml 两个 job 的每一步
-npm run verify           # 第五道闸：真 headless Chrome，11 条腿 × 两种 URL 形态（各 183 条断言）
+npm run verify           # 第七道闸：真 headless Chrome，11 条腿 × 两种 URL 形态（各 185 条断言）
 npm run verify:deployed  # 同一套腿跑在线上那份字节上（已跑过：11 腿 / 183 断言 / rc=0，见 docs/DESIGN.md §10）
 ```
 
 那五段边界门住在 `tools/wiring-check.sh` 而不是 workflow 的 `run:` 里：CI 与本机调**同一个脚本**，
 一条门只有一份定义 —— 只存在于 CI 的门在本机跑不到，红的时候现场只剩"放宽它"。
 
-第 [5] 段管的是反方向：本机那条入口有没有悄悄落后于 CI。它从 `ci.yml` 的 `run:` 现读出 8 个门禁，
+第 [5] 段管的是反方向：本机那条入口有没有悄悄落后于 CI。它从 `ci.yml` 的 `run:` 现读出 10 个门禁，
 再把 `package.json` 的 `scripts.ci` 顺着 `npm run X` 一层层展开（本轮展开到 check → ci → deploy-set →
 deploy-set:selftest → test → verify → wiring 这 7 条 script），要求每个门禁都被够到。改这一版之前，
 `npm run ci` 只到 `npm test` 为止：deploy-set 两步与浏览器闸从来不在它里面，而上面那行注释把它说成
@@ -68,12 +76,11 @@ deploy-set:selftest → test → verify → wiring 这 7 条 script），要求�
 这种写法、现读出 0 个门禁，兜底那句立刻判它空转而不是绿（`WIRING_RC=1`，`_tmp-tasquare-wiring-r1.log`）——
 读出来的数少到 0 就红，是这一段的默认。
 
-这条入口在上一笔定稿的那份树上跑满过一遍（工作树干净、`HEAD` 即已发布那一笔；起停 15:11:50Z→15:12:12Z，
-二十余秒，机器相关读数、不参与对账）：`check` 打 `OK`；`wiring` 五段全 `ok` 收在 `WIRING-CHECK PASS`；
-`npm test` 四道闸走完；`deploy-set` 打 `部署集：25 条引用（含 3 张位图尺寸核对），失败 0 项` 与 `rows: 44 fail: 0`；
+这条入口在**这一版树上**跑满过一遍：`check` 打 `OK`；`wiring` 五段全 `ok` 收在 `WIRING-CHECK PASS`；
+`npm test` 六道闸走完；`deploy-set` 打 `部署集：50 条引用（含 7 张位图尺寸核对），失败 0 项` 与 `rows: 78 fail: 0`；
 `deploy-set:selftest` 那十三刀逐条按预期发力（`DS_SELFTEST rc=0`；X13 在本仓打的是 `SKIP · manifest 里没有内联 data:image/png 图标`，这一刀在本仓不落）；
-`verify` 两种形态**都**跑到了——`prefix 11/11 · 183 断言 · FAIL 0` 与 `root 11/11 · 183 断言 · FAIL 0`，`GATE_RC=0`。
-整条 `TASQUARE_CI_RC=0`，读数在那份外层日志里。这一跑之前，上面那行 `npm run ci` 只是把六段拼起来而没有整机
+`verify` 两种形态**都**跑到了——`prefix 11/11 · 185 断言 · FAIL 0` 与 `root 11/11 · 185 断言 · FAIL 0`，`GATE_RC=0`。
+这一跑之前，上面那行 `npm run ci` 只是把六段拼起来而没有整机
 跑通过：`wiring` 的第 [5] 段能证明"CI 有的本地都有"，证不了这六步真能在一台机器上按顺序走齐。
 
 每道闸守的东西不重叠：`rule-test` 守语义与词汇表（含页面上每句话的出处），`counter-test` 守裁判
@@ -137,7 +144,7 @@ Chrome profile 按 URL 形态各一份、落在 mktemp 子目录里。
   内联成 base64 的图标先解码再读同一段。后一条不是可选项：图标可能住在清单里而不是盘上的 `.png`
   （有的仓另有一条"零二进制文件"的承诺，那条只约束"有没有 .png 这个文件"）；如果 P 段只筛文件名，
   声明写 512 而真图 192 就一路放行。
-- **钉住两个数**：R 段实际检查的路径条数（`25`）与这一次跑的断言条数（`43`），两个数
+- **钉住两个数**：R 段实际检查的路径条数（`50`）与这一次跑的断言条数（`78`），两个数
   都钉在 `tools/deploy-set.mjs` 顶部的那对常量里。没改页面却掉了，说明解析断了；删掉一张图标会同时
   少一条 R10 与那张的 P1/P2，所以两个数一起钉，断言条数能漂就是闸在缩水的信号。这一节故意只写数值、
   不写那对常量的名字，也不写别仓文档闸的编号：有的仓的文档闸会拿"文档里出现过的同名标识号"回数它
@@ -148,7 +155,7 @@ Chrome profile 按 URL 形态各一份、落在 mktemp 子目录里。
 各下一刀（X1 清单不收位图目录 / X2 模块边改名 / X3 CSS 写绝对路径 / X4 `start_url` 绝对 /
 X5 删光 >=512 图标 / X6 少一个必填字段 / X7 声明尺寸与真图不符 / X8 workflow 不调脚本 /
 X9 CI 不跑闸 / X10 是阴性对照——往入口 JS 追加一行只写在注释里的假路径，闸必须仍然绿、条数仍然
-`25`、断言仍然 `43`；X11 og:image 退回相对路径 / X12 og:image 的前缀指向别的 slug /
+`50`、断言仍然 `78`；X11 og:image 退回相对路径 / X12 og:image 的前缀指向别的 slug /
 X13 内联位图谎报尺寸——只在有靶子时下：X11/X12 要页面上那句 og:image，X13 要清单里真有一段 base64
 图标，没有就打印 SKIP；反过来 X1 没有位图目录可砍时改砍 css，P 段一位都不核时台架直接报靶子不够），
 要求每一刀都让闸**点名**变红。靶子从 `DEPLOY_SET_DUMP=1`

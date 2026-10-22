@@ -29,12 +29,21 @@
 
 * { box-sizing: border-box; }
 
+/* safe-area 兜底只有**一套**：--safe-t/--safe-r/--safe-b/--safe-l 这四个变量，
+   body / .bar / main 各按自己那一侧让开（见文件开头）。
+   并线时另一侧那套（--sat/--sar/--sab/--sal + html/body padding）也被带了进来：
+   两套变量名说的是同一件事，body 的 padding 因此被写了两遍（后写的赢，值一样，看不出错），
+   而少掉的那一套还带一条 .fixed-bottom/.bottom-bar/.hud-bottom/footer.app-footer 的选择器 ——
+   本仓一条都不命中（页面上那个页脚是 class="foot"）。
+   这里留一套；min-height 归到 body 那条（100dvh 是移动端真实可视高度，100vh 是回退）。 */
 body {
   margin: 0;
   background: var(--paper) var(--paper-img);
   color: var(--ink);
   font: 15px/1.6 ui-sans-serif, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
   padding: calc(var(--safe-t) + 0px) var(--safe-r) calc(var(--safe-b) + 0px) var(--safe-l);
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .bar {
@@ -111,6 +120,9 @@ main { display: grid; gap: 22px; padding: 20px calc(var(--safe-r) + 20px) calc(v
   -webkit-touch-callout: none;
 }
 .cell.free:hover { background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
+/* 按下去的那一下缩放：按压反馈不是装饰 —— 振动反馈关掉的机器上，"点了没反应"和"没点"长得一样。
+   这条与下面减弱动效那一段是一对：减弱动效时缩放取消，改由边框变色给出反馈。 */
+.cell.free:active { transform: scale(.97); }
 .cell:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 /* 圈内数字：一个真正的圆，直径压到格子的六成，数字居中 */
@@ -197,31 +209,6 @@ summary { cursor: pointer; color: var(--ink-quiet); }
   }
 }
 
-/* 中央分发：safe-area 兜底 */
-
-/* ---------- safe-area：刘海与主屏条不吃掉按钮（中央分发，akari-cos 同口径） ---------- */
-:root {
-  --sat: env(safe-area-inset-top, 0px);
-  --sar: env(safe-area-inset-right, 0px);
-  --sab: env(safe-area-inset-bottom, 0px);
-  --sal: env(safe-area-inset-left, 0px);
-}
-html, body {
-  padding-left: var(--sal);
-  padding-right: var(--sar);
-}
-body {
-  padding-top: var(--sat);
-  padding-bottom: var(--sab);
-  min-height: 100vh;
-  min-height: 100dvh;
-}
-/* 贴边的固定/吸底元素自己让开主屏条，别让 home indicator 压住按钮 */
-.fixed-bottom, .bottom-bar, .hud-bottom, footer.app-footer {
-  padding-bottom: calc(var(--sab) + env(safe-area-inset-bottom, 0px));
-}
-
-
 /* ============================================================
    44px 触摸命中下限（Apple HIG 手机可用性底线）
    每个真正可点的元素都要有 ≥44×44 CSS px 的命中盒。
@@ -249,14 +236,24 @@ a[href],
 }
 
 /* ---------- 减弱动效（prefers-reduced-motion）---------- */
-/* 本仓当前**没有**可减的装饰性动效：只有 .cell.free:hover 与 button:hover 的背景/边框色瞬切，无 transition / @keyframes
-   剩下的 :hover 颜色瞬切与 focus 轮廓是状态反馈，不是动效，动了反而更难用。 */
+/* 两条腿，缺一条就有一半不生效：
+   ① 媒体查询这一条 —— 系统设置在**加载时**就是"减少动效"，CSS 媒体查询会自己重算。
+   ② body.reduced-motion 那一组 —— 运行时改系统设置（不刷新页面）也要生效：那是 app.js 的
+      matchMedia('change') 监听切上来的 class，媒体查询管不到它。
+   并线时 ② 整组被裁掉了，① 的注释还写着"本仓当前没有可减的装饰性动效" ——
+   那句话在并线前是真的（那时标题没有入场动画），并线后标题有了 title-in，它就不真了。 */
 @media (prefers-reduced-motion: reduce) {
-  /* 当下这三条不命中任何东西；写在这里是为了将来有人加动画/过渡时自动被归零，
-     而不必再想起来补这一段。颜色、透明度、命中区、focus 轮廓一律不动。 */
+  /* 全局归零：任何动画/过渡都不许再动。颜色、透明度、命中区、focus 轮廓一律不动。 */
   *, *::before, *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
+  /* 标题的入场动画与按压时的缩放全部取消 —— 按下去没有位移反馈这件事本身
+     在振动反馈关掉的机器上就是"没响应"，所以边框仍给变化。 */
+  .title-face { animation: none; }
+  .cell.free:active { transform: none; border-color: var(--accent); }
+  * { scroll-behavior: auto; }
 }
+body.reduced-motion .title-face { animation: none; }
+body.reduced-motion .cell.free:active { transform: none; border-color: var(--accent); }

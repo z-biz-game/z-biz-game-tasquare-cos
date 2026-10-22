@@ -128,13 +128,14 @@ loadavg、对象遍历序；**所有排序的随机键都在 `sort` 之前抽成
 | balance | `npm run balance`（回填表用 SAMPLES=60）/ CI 用 24 | 档位定价与生产路径的形状：§A 结构不变量、§B 出货率、§C 难度轴、§D seed、§E 负控、§F 不可约、§G 三条语义、§H 饱和点 | 70 checks / 0 failed（SAMPLES=24/档，4 档）|
 | session | `npm run session` | 十二段：存档坏一条只丢那一条（两段解码）、30/60/120Hz 三档定步对拍**并要求阴性对照红一次**、静音是真 `suspend()` 而不是 gain=0、指针坐标先减 rect 再按 CSS 尺度除、SW 网络优先与 SHELL 的磁盘存在性、`file:` 下静默跳过注册、台账那条腿（用时落盘↔接回，NaN/负数/越界值挡在时钟之外）| 214 checks / 0 failed（三档 12 个字段比值全 = 1.000000；变异体 3.9834 > 3.6 判红）|
 | motif | `node tools/motif-test.mjs` | 图标上那张题面由**真引擎**逐条判 R1–R6：python 侧 `make_art.py` 的读数口径与 `rules.js` 的 `readA='area'` 一旦分叉就红（本仓实测分叉过两回：数黑格 vs 面积、`?` 放在零邻黑格的格子）；画上去的黑区必须是裁判认得的解之一；盘上每张位图真在被引用、真是 PNG、IHDR 与 manifest 声明的 sizes 一致、无 0 字节 | 49 checks / 0 failed（三个变异体各红一次：R4×3、R5×1、R4×1）|
-| browser | `npm run verify` | 真 headless Chrome、真 DOM、真 localStorage、真指针、真按键、真刷新：11 条腿（open domint playfull illegal pointer keyboard narrow resume reject crossengine canary）× 两种 URL 形态 | 183 断言/形态 · rc=0（部署形态另跑一遍同样 183 条，读数在 §10）|
-| 边界门（不是 node 闸，所以不占"第几道闸"的号）| `bash tools/wiring-check.sh` | 四段：`js/` 不 import `tools/`（import 形状的正则，注释里提一句不算命中）、入口接线 31 条（原 28 条，本轮补上三条位图消费腿：`icons/icon-32.png`←index.html、`assets/sprites/spark.png`←js/ui/fx.js、`assets/gen/motif.json`←tools/motif-test.mjs）、两份 workflow 的 manifest、`_site` 的工件形状 | WIRING-CHECK PASS · rc=0；四段各被一次性副本破坏过一次，四次都 rc=1 |
+| browser | `npm run verify` | 真 headless Chrome、真 DOM、真 localStorage、真指针、真按键、真刷新：11 条腿（open domint playfull illegal pointer keyboard narrow resume reject crossengine canary）× 两种 URL 形态 | 185 断言/形态 · rc=0（部署形态那一遍跑的是 183 条 —— 续局腿后来多钉了两条，见 §7 的续局腿说明，读数在 §10）|
+| 边界门（不是 node 闸，所以不占"第几道闸"的号）| `bash tools/wiring-check.sh` | 五段：`js/` 不 import `tools/`（import 形状的正则，注释里提一句不算命中）、入口接线 31 条（原 28 条，本轮补上三条位图消费腿：`icons/icon-32.png`←index.html、`assets/sprites/spark.png`←js/ui/fx.js、`assets/gen/motif.json`←tools/motif-test.mjs）与 HUD id 对账（app.js 取的 id 必须在页面上，**并且**页面上每颗带 id 的按钮都必须被 app.js 接线——并线时留下一颗没人接的 `#btn-fullscreen`，前一条查不出来）、两份 workflow 的 manifest、`_site` 的工件形状、本地入口够不够得到 CI 的每一步 | WIRING-CHECK PASS · rc=0 |
 
 CI 的 `check job` 每一步在本机都有同一条命令：`npm run ci` = `npm run check`（逐文件 `node --check`，
 文件集与 CI 的 `git ls-files` 集合实测相同，20 个）+ `npm run wiring`（`tools/wiring-check.sh`：
-分层、入口接线、workflow manifest、工件形状四段门）+ `npm test`（六道 node 闸）。
-**这四段门住在脚本里而不是 workflow 的 `run:` 里** —— 只存在于 CI 的门本机跑不到，红的时候现场
+分层、入口接线与 HUD id 对账、workflow manifest、工件形状、本地入口五段门）+ `npm test`（六道 node 闸）
++ `npm run deploy-set` + `npm run deploy-set:selftest` + `npm run verify`（浏览器闸）。
+**这五段门住在脚本里而不是 workflow 的 `run:` 里** —— 只存在于 CI 的门本机跑不到，红的时候现场
 只能放宽它，那是比红更大的损失。脚本的第 3 段还会读 workflow 自己的 manifest：注释里承诺过的步骤
 如果没真的存在（今天就这样漏过 `configure-pages` 与 `upload-pages-artifact` 两步），这里直接红。
 
@@ -172,6 +173,20 @@ CI 的 `check job` 每一步在本机都有同一条命令：`npm run ci` = `npm
    实际步骤却只落了最后一那个 —— 那是一条"run 报绿而工件里什么都没上传"的形状。
    教训：注释里提到的名字不能当作步骤存在过的证明。这一条现在有机器守 —— `tools/wiring-check.sh` §3
    逐行读两份 workflow 的 manifest，缺步骤就红，而且它本身被 ci.yml 调用（第 3 段还断言这件事）。
+7. **并线把 HUD 的三颗按钮与 head 的图标接缝丢了**。两侧各长出一套 UI：一边加暂停/静音/全屏/玩法说明
+   与时钟、台账、动效层，另一边加全屏与"重开本题"。并线按块裁，页面留下的是**一半**：app.js 仍按
+   `$('mute')`、`$('fullscreen')`、`$('help')` 取那三颗按钮，而页面上只剩 `#btn-fullscreen`——
+   点声音按钮 TypeError，整页只剩壳。同一批里还有 `og:image` 退回旧图、SW 被注册两遍、
+   清单里写着另一套图标。
+   教训：并线后的第一件事不是"看能不能跑"，而是**把 app.js 取的每一个 id 与页面上印的每一个 id 对上账**。
+   这条现在有机器守（`tools/wiring-check.sh` 第 [2b] 段，两个方向都查）。
+8. **同一个对象字面量里两个同名键，后写的把前写的盖成了死代码**。`window.tasquare` 上先后长出
+   `restart`（重开本题，探针钩子）与 `restart`（重开这一局，应用入口）—— 前一条被后一条整个盖掉，
+   于是"探针能驱动重开本题"这条承诺看着还在、其实调不到。
+   教训：JS 对象的成员也是**块**，并线时同样会丢；同名键不会报语法错，只会静悄悄地让一条承诺失效。
+9. **注释里写着"清单住在 assemble-site.sh"，步骤却还是手抄的 cp**。并线把远端那段注释接了过来，
+   却没接那两步真正的 `run:` —— 于是 `pages.yml` 的注释在撒谎，部署集闸的 W2 直接红。
+   教训：注释与步骤是两份东西，接注释的时候别把步骤落下；**闸要查的是调用那一行，不是文件里出现过这个路径**。
 
 ## 10 量到哪、没量到哪
 
@@ -200,7 +215,7 @@ npm run balance          # SAMPLES=60 —— 回填 TIERS 的 band/steps/carve �
 npm run verify           # 浏览器闸：root 5611 + prefix 5612 两种形态
 npm run verify:local     # 只跑 root 形态（改东西时最快的一遍）
 npm run verify:deployed  # 线上字节那遍（需要 Pages 已发布）
-npm run ci               # = check + test，本机跑通 ci.yml 的 check job
+npm run ci               # = check + wiring + test + deploy-set + deploy-set:selftest + verify，本机跑通 ci.yml 两个 job 的每一步
 ```
 
 端口：root web `5611` / 前缀 web `5612` / CDP `9611`。`tools/verify.sh` 只起停自己那几份进程，

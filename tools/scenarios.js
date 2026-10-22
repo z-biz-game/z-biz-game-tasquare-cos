@@ -604,8 +604,23 @@
     if (round === 0) {
       const gen = await mod('./js/engine/generate.js');
       const st = await loadClean(E.tier, E.round);
-      ck('本腿先把档清干净（腿内自带前置，不吃上一条腿写的档）',
-        Object.keys(localStorage).filter((k) => k.indexOf('tasquare:') === 0).length === 0, JSON.stringify(Object.keys(localStorage)));
+      // 「档」= **盘面存档**（tasquare:v1:<档>:<局号>）。prefs 与台账（index）是元数据：
+      // 页面每次 load 都会重写它们（prefs 记当前档、台账记上一局的用时），
+      // 所以"一个 tasquare: 前缀的键都不剩"量到的是元数据而不是盘面 ——
+      // 那条断言在并线前成立（那时页面还没有 prefs 与台账），并线后它量不到本来要量的东西。
+      // 下面三条一起把"干净"说全：盘面存档一条不许剩；应用自己那两个键必须在（证明不是把整个
+      // 存储清空了才通过）；tasquare: 前缀下**只许**出现这三个键，多出来的任何一个都是没被记着的状态。
+      const lsKeys = Object.keys(localStorage);
+      const boardKeys = lsKeys.filter((k) => k.indexOf('tasquare:v1:') === 0);
+      ck('本腿先把**盘面存档**清干净（腿内自带前置，不吃上一条腿写的档）',
+        boardKeys.length === 0, JSON.stringify(lsKeys));
+      ck('应用自己的两个元数据键在位（prefs 记当前档 · 台账记用时；本腿量的是盘面存档，不是它们）',
+        lsKeys.indexOf('tasquare:prefs:v1') >= 0 && lsKeys.indexOf('tasquare:index:v1') >= 0,
+        JSON.stringify(lsKeys));
+      ck('tasquare: 前缀下只有这三个键（盘面存档 + prefs + 台账），多出来的都是没人记着的状态',
+        lsKeys.filter((k) => k.indexOf('tasquare:') === 0)
+          .every((k) => k.indexOf('tasquare:v1:') === 0 || k === 'tasquare:prefs:v1' || k === 'tasquare:index:v1'),
+        JSON.stringify(lsKeys));
       ck('这一档**不等于**默认档（TIERS[0]/0）⇒ 续出来的读数才有出处',
         E.tier !== gen.TIERS[0].key || E.round !== 0, `${E.tier}/${E.round} vs 默认 ${gen.TIERS[0].key}/0`);
       const blk = E.ledger.filter((x) => x.v === 1)[0].i;

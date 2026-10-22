@@ -108,7 +108,7 @@ function renderStatic() {
     '左键 / 触摸：未知 → 黑 → 白 循环；按住拖动可以连着涂同一态。',
     '右键：黑 ↔ 未知（跳过"白"，注白交给左键的第二态）。',
     '键盘：方向键走格，Enter 或 空格 在焦点格落子。',
-    '全局键：P 或 空格 暂停 · R 重开这一局 · N 再来一局 · M 静音 · F 全屏 · H 或 ? 收起/展开本说明。',
+    '全局键：P 或 空格 暂停 · R 重开本题 · N 再来一局 · M 静音 · F 全屏 · H 或 ? 收起/展开本说明。',
     '触屏上暂停时盘面不吃输入，但读数与存档都还在 —— 暂停停的是时钟与动效，不是这一局的事实。',
   ].map((s) => `<li>${s}</li>`).join('');
 }
@@ -239,14 +239,56 @@ function setMuted(on) {
   return audio.muted();
 }
 
+// ---- 全屏开关（#fullscreen）----
+// 一份实现、一颗按钮、一个入口：按钮与 F 键都走 toggleFullscreen()，不另开第二条路。
+// 能力取两侧并线前的**并集**（并线时远端那一份整块被裁掉了）：
+//   · 能力检测带 webkit/ms 前缀 —— iOS Safari 是 webkitRequestFullscreen，老 Edge 是 ms 前缀，
+//     而 UA 字符串随时会改，"有没有这个能力"是查出来的，不是猜出来的。
+//   · 不支持时按钮置灰**并说明原因**：只灰不说理由，玩家会以为这功能没做完。
+//   · aria-pressed 与按钮文案随 fullscreenchange 回写 —— Esc 与系统手势退出都不经过我们的代码，
+//     否则用户已经退出、HUD 还停在"退出全屏"，下一次点击反而会重新进全屏。
+//   · 请求返回的 promise 必须吃掉：iOS Safari 对多数非 video 元素直接拒绝，
+//     让这个 rejection 冒泡出去会变成一条未捕获错误，整局游戏跟着挂。
+const fsRoot = document.documentElement;
+const fsRequest = fsRoot.requestFullscreen || fsRoot.webkitRequestFullscreen || fsRoot.msRequestFullscreen;
+const fsExit = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+const fsCurrent = () => document.fullscreenElement || document.webkitFullscreenElement
+  || document.msFullscreenElement || null;
+let fsSupported = !!fsRequest;
+
+function markFullscreenUnsupported() {
+  fsSupported = false;
+  const btn = $('fullscreen');
+  if (!btn) return;
+  btn.disabled = true;
+  btn.title = '这个浏览器不提供元素全屏（iOS Safari 请用「添加到主屏幕」独立打开）';
+}
+
+function syncFullscreenButton() {
+  const btn = $('fullscreen');
+  if (!btn) return;
+  const on = !!fsCurrent();
+  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  btn.textContent = on ? '退出全屏' : '全屏';
+  if (fsSupported) btn.title = on ? '退出全屏（F）' : '全屏（F）';
+}
+
 function toggleFullscreen() {
-  const host = document.fullscreenElement ? null : document.documentElement;
-  if (document.fullscreenElement) {
-    document.exitFullscreen().catch(() => {});
-  } else if (host && host.requestFullscreen) {
-    host.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+  try {
+    if (fsCurrent()) {
+      if (fsExit) { const p = fsExit.call(document); if (p && p.catch) p.catch(markFullscreenUnsupported); }
+    } else if (fsRequest) {
+      const p = fsRequest.call(fsRoot, { navigationUI: 'hide' });
+      if (p && p.catch) p.catch(markFullscreenUnsupported);
+    } else {
+      markFullscreenUnsupported();
+    }
+  } catch (e) {
+    markFullscreenUnsupported();
   }
-  return !!document.fullscreenElement;
+  syncFullscreenButton();
+  relayout();                       // 全屏改了可视区，动效画布那一层要重排一次
+  return !!fsCurrent();
 }
 
 function toggleHelp(force) {
@@ -327,13 +369,16 @@ $('next').addEventListener('click', () => load(game.tierKey, game.round + 1));
 // 拒盘那块面板必须自己也能走人：#play 在这条分支里是 hidden 的，#next 根本点不到，
 // 少这一行的话"这一局号没能出货"就是一张死路告示，而页面上唯一能换局的按钮藏在看不见的那块里。
 $('reject-next').addEventListener('click', () => load(game.tierKey, game.round + 1));
-$('reset').addEventListener('click', () => { game.clear(); render(); });
+$('reset').addEventListener('click', () => { game.restart(); render(); });
 $('restart').addEventListener('click', () => { restart(); });
 $('check').addEventListener('click', renderStatus);
 $('pause').addEventListener('click', () => setPaused(!motion.st.paused));
 $('mute').addEventListener('click', () => setMuted(!audio.muted()));
-$('fullscreen').addEventListener('click', () => { toggleFullscreen(); relayout(); });
+$('fullscreen').addEventListener('click', () => { toggleFullscreen(); });
 $('help').addEventListener('click', () => toggleHelp());
+// 全屏按钮的初始态：不支持就置灰并说明原因，支持就把文案与 aria-pressed 摆正。
+// 这一步放在按钮接线之后而不是模块顶上——按钮此刻才真的在 DOM 上。
+if (fsRequest) syncFullscreenButton(); else markFullscreenUnsupported();
 $('hint').addEventListener('click', () => {
   if (!game.ok) return;
   const f = game.face, h = game.hint();
@@ -358,7 +403,7 @@ $('board').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); applyMark(Number(el.dataset.i)); }
 });
 
-// 全局键：P/空格 暂停、R 重开、N 再来一局、M 静音、F 全屏、H/? 说明。
+// 全局键：P/空格 暂停、R 重开本题、N 再来一局、M 静音、F 全屏、H/? 说明。
 // 焦点在格子上时空格归"落子"（上面那条处理器已经 preventDefault，这里靠 defaultPrevented 让位）。
 window.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -372,10 +417,14 @@ window.addEventListener('keydown', (e) => {
     // 空格在**没有**焦点格的时候才是暂停（焦点在格子上时上面已经 return 了，不会双触发）。
     // 页面上那句"全局键：P 或 空格 暂停"没有这一条就是空头承诺，而浏览器会把它读成页面滚动。
     ' ': () => { setPaused(!motion.st.paused); },
-    r: () => { restart(); }, R: () => { restart(); },
+    // R = 重开本题：把这一局的涂黑全清掉，题面、盘号与用时都不动。
+    // 页面上有三处文案都这么写（#reset 那颗按钮的 title、侧栏底部那段 .howto、下面那张键位表），
+    // 而「重开这一局」（连时钟与动效一起复位）是另一颗按钮的事，不靠键 —— 两个入口两套语义，
+    // 并线时它们被接成同一个，是一处说谎的地方。
+    r: () => { game.restart(); render(); }, R: () => { game.restart(); render(); },
     n: () => { load(game.tierKey, game.round + 1); }, N: () => { load(game.tierKey, game.round + 1); },
     m: () => { setMuted(!audio.muted()); }, M: () => { setMuted(!audio.muted()); },
-    f: () => { toggleFullscreen(); relayout(); }, F: () => { toggleFullscreen(); relayout(); },
+    f: () => { toggleFullscreen(); }, F: () => { toggleFullscreen(); },
     h: () => { toggleHelp(); }, H: () => { toggleHelp(); }, '?': () => { toggleHelp(); },
   }[k];
   if (!hit) return;
@@ -421,7 +470,9 @@ function relayout() {
 }
 window.addEventListener('resize', relayout);
 window.addEventListener('orientationchange', () => { relayout(); });
-document.addEventListener('fullscreenchange', relayout);
+document.addEventListener('fullscreenchange', () => { syncFullscreenButton(); relayout(); });
+window.addEventListener('webkitfullscreenchange', syncFullscreenButton);
+window.addEventListener('MSFullscreenChange', syncFullscreenButton);
 if (typeof ResizeObserver !== 'undefined' && $('board')) new ResizeObserver(relayout).observe($('board'));
 
 function frame(now) {
@@ -463,8 +514,10 @@ window.tasquare = {
   } : null),
   mark: (i, v) => { game.mark(i, v); render(); },
   cycle: (i) => { game.cycle(i); render(); },
-  // 供探针驱动：重开本题。挂在窗口上是为了让闸能真的调一次、读 BEFORE/AFTER，
-  // 而不必去合成点击（格子的点击要落到 DOM 上，离屏闸点不稳）。
+  // 供探针驱动：重开本题（清掉这一局的涂黑，题面与盘号不变）。挂在窗口上是为了让闸能真的调一次、
+  // 读 BEFORE/AFTER，而不必去合成点击（格子的点击要落到 DOM 上，离屏闸点不稳）。
+  // 并线时这里和下面那个 `restart` 撞了名：对象字面量里后写的那个把前写的盖成了死代码，
+  // 于是"探针能驱动重开本题"这条承诺看着还在、其实调不到。现在两个入口两个名字。
   restart: () => { game.restart(); render(); },
   load,
   pwa: () => ({ ...pwa }),
@@ -472,13 +525,14 @@ window.tasquare = {
   motion: () => motion.snapshot(),
   paused: () => motion.st.paused,
   setPaused,
-  restart,
+  // 重开这一局：连时钟、动效与结论一起复位（#restart 那颗按钮的入口）。
+  restartRound: () => restart(),
   muted: () => audio.muted(),
   setMuted,
   audio: () => audio.stats(),
   hit: (x, y) => (fx ? fx.hitCell(x, y) : null),
   geo: () => (fx ? fx.geo() : null),
-  fullscreen: () => !!document.fullscreenElement,
+  fullscreen: () => !!fsCurrent(),
   prefs: () => ({ ...prefs }),
   // 台账读数：用时要是真落进盘上了，这里就得能读回那条 {tier,round,seed,elapsed}；
   // 谁的 writeIndex 写丢了、谁改了 INDEX_KEY 的形状，这条一照就现形（不是信注释）。

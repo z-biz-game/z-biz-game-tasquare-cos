@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   check:
-    name: syntax + four node gates
+    name: syntax + six node gates
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
