@@ -49,7 +49,7 @@
 
 ### 4. 实数钉（钉的是实数，强度不变）
 
-`tools/deploy-set.mjs` 的 `EXPECT_CHECKS` **25 → 50**、`EXPECT_ROWS` **44 → 78**：
+`tools/deploy-set.mjs` 的 `EXPECT_CHECKS` **25 → 50**（2026-10-28 补齐离线壳后重钉 57）、`EXPECT_ROWS` **44 → 78**（重钉 85）：
 并线把中央分发那套图标（16/32/48/96）、og-image 社交卡与 `assets/textures` 三张位图接回了页面，
 R 段因此多解析出 25 条引用。**R12 / R13 这两条断言本身没动**，它们照样在"少一条就红"的方向上咬人；
 `tools/deploy-set-selftest.mjs` 的阴性对照（X10：往入口 JS 追加一行只写在注释里的假路径）

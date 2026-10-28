@@ -582,7 +582,7 @@ console.log('\n[§10 sw.js：版本号进 cache 名 · 子资源网络优先 · 
   const version = cacheLog.opened[0];
   ok(`§10 cache 名带版本号（实测 "${version}"）`, /^tasquare-v\d+$/.test(String(version)), version);
   const shell = cacheLog.added || [];
-  eq('§10 预缓存清单是 12 条（页面 + 样式 + manifest + 位图）', shell.length, 12);
+  eq('§10 预缓存清单是 17 条（页面 + 样式 + manifest + 位图 + 入口/垫片脚本）', shell.length, 17);
   const missing = shell.filter((p) => p !== './' && !existsSync(p.replace(/^..\//, '').replace(/^\.\//, '')));
   eq(`§10 SHELL 里每一条都真在磁盘上（缺就是线上 404 而 SW 全绿）`, missing.join(','), '');
   ok('§10 SHELL 覆盖新增的三张位图与精灵', ['paper-grain', 'ink-block', 'spark'].every((n) => shell.some((p) => p.includes(n))), shell.join(' '));

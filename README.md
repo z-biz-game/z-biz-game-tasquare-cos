@@ -77,7 +77,7 @@ deploy-set:selftest → test → verify → wiring 这 7 条 script），要求�
 读出来的数少到 0 就红，是这一段的默认。
 
 这条入口在**这一版树上**跑满过一遍：`check` 打 `OK`；`wiring` 五段全 `ok` 收在 `WIRING-CHECK PASS`；
-`npm test` 六道闸走完；`deploy-set` 打 `部署集：50 条引用（含 7 张位图尺寸核对），失败 0 项` 与 `rows: 78 fail: 0`；
+`npm test` 六道闸走完；`deploy-set` 打 `部署集：57 条引用（含 7 张位图尺寸核对），失败 0 项` 与 `rows: 85 fail: 0`；
 `deploy-set:selftest` 那十三刀逐条按预期发力（`DS_SELFTEST rc=0`；X13 在本仓打的是 `SKIP · manifest 里没有内联 data:image/png 图标`，这一刀在本仓不落）；
 `verify` 两种形态**都**跑到了——`prefix 11/11 · 185 断言 · FAIL 0` 与 `root 11/11 · 185 断言 · FAIL 0`，`GATE_RC=0`。
 这一跑之前，上面那行 `npm run ci` 只是把六段拼起来而没有整机

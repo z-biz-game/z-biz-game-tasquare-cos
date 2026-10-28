@@ -34,13 +34,13 @@ const ASSEMBLE = 'tools/assemble-site.sh';
 // 【实数钉 · 本轮改动】25 → 50：并线把本地侧的中央分发图标（16/32/48/96）、og-image 社交卡、
 // 与 assets/textures 三张位图接回了页面，R 段因此多解析出 25 条引用。
 // 钉的是**实数**，强度不变：R12 这条断言本身没动，它照样在"少一条就红"的方向上咬人。
-const EXPECT_CHECKS = 50;
+const EXPECT_CHECKS = 57;
 // 全绿时这个闸实际跑的断言条数（W/R/P 三段之和）。钉住它，「少一条断言」就不可能是绿的：
 // 删掉 manifest 里的一张图标会同时少一条 R10 与那张的 P1/P2 两行——那条路径缺文件本来就该红，
 // 但 rows 能漂就是闸在缩水的信号，所以两个数一起钉。
 // 【实数钉 · 本轮改动】44 → 78：理由同上（引用条数变多 ⇒ R10 与位图 P1/P2 一起变多）。
 // 钉的是**实数**，强度不变。
-const EXPECT_ROWS = 78;
+const EXPECT_ROWS = 85;
 
 let rows = 0;
 const fails = [];
