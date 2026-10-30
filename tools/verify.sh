@@ -510,7 +510,8 @@ fi
 echo "=== deploy-set ==="
 node tools/deploy-set.mjs; DS1=$?
 node tools/deploy-set-selftest.mjs; DS2=$?
-[ "$DS1" -eq 0 ] && [ "$DS2" -eq 0 ] || FINAL=1
+node tools/docs-test.mjs; DS3=$?
+[ "$DS1" -eq 0 ] && [ "$DS2" -eq 0 ] && [ "$DS3" -eq 0 ] || FINAL=1
 echo "GATE_RC=$FINAL" >>"$GATE"
 # 只报这一跑真的跑过的形态：SHAPES=root / DEPLOYED_URL 那种单形态跑，旧文案照样打印"两种 URL 形态"。
 # 阴性自证也走同一条出口：故意改错期望时这一跑的 **rc 必须非 0**。

@@ -11,6 +11,7 @@
     "dev": "node server.cjs 5611",
     "prefix": "PREFIX=/z-biz-game-tasquare-cos PORT=5612 node server.cjs",
     "test": "node tools/rule-test.mjs && node tools/counter-test.mjs && node tools/pencil-test.mjs && SAMPLES=24 node tools/balance.mjs && node tools/session-test.mjs && node tools/motif-test.mjs",
+    "docs": "node tools/docs-test.mjs",
     "rule": "node tools/rule-test.mjs",
     "counter": "node tools/counter-test.mjs",
     "pencil": "node tools/pencil-test.mjs",

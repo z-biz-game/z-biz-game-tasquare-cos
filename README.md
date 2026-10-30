@@ -77,7 +77,7 @@ deploy-set:selftest → test → verify → wiring 这 7 条 script），要求�
 读出来的数少到 0 就红，是这一段的默认。
 
 这条入口在**这一版树上**跑满过一遍：`check` 打 `OK`；`wiring` 五段全 `ok` 收在 `WIRING-CHECK PASS`；
-`npm test` 六道闸走完；`deploy-set` 打 `部署集：57 条引用（含 7 张位图尺寸核对），失败 0 项` 与 `rows: 85 fail: 0`；
+`npm test` 六道闸走完；`deploy-set` 打 `部署集：57 条引用（含 7 张位图尺寸核对），失败 0 项` 与 `rows 85 / fail 0`；
 `deploy-set:selftest` 那十三刀逐条按预期发力（`DS_SELFTEST rc=0`；X13 在本仓打的是 `SKIP · manifest 里没有内联 data:image/png 图标`，这一刀在本仓不落）；
 `verify` 两种形态**都**跑到了——`prefix 11/11 · 185 断言 · FAIL 0` 与 `root 11/11 · 185 断言 · FAIL 0`，`GATE_RC=0`。
 这一跑之前，上面那行 `npm run ci` 只是把六段拼起来而没有整机
@@ -168,4 +168,9 @@ X13 内联位图谎报尺寸——只在有靶子时下：X11/X12 要页面上�
 包装脚本的 `FAILED`，而是工件里那一位 `GATE_RC`（`tools/verify.sh:513-514`），所以块必须排在
 结论横幅（`tools/verify.sh:518`）之前、`exit $FINAL`（`tools/verify.sh:520`）之前，否则就是
 「块里红了、横幅仍写 ALL GREEN、退出码还是 0」。
+
+## 文档对账这一跑的读数
+
+文档行号对账：3 份文档 · 5 条引用 · 2 条带指认 · 0 条续引 · 0 条仓外。
+这条腿实发 21 条判据，`rows: 21 fail: 0`。
 

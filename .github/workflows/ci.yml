@@ -35,6 +35,9 @@ jobs:
       - name: Wiring gate (layering, entry wiring, workflow manifest, artifact shape)
         run: bash tools/wiring-check.sh
 
+      - name: Docs cite real lines
+        run: node tools/docs-test.mjs
+
       # 没有 `node --test test/`：本仓根本没有 test/ 目录，单元测试的形状就是下面六道闸本身。
       - name: Rule gate (语义 + 条款文字表 + 出处引文)
         run: node tools/rule-test.mjs
